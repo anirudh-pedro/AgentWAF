@@ -22,14 +22,14 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard & Audit Analytics"])
     "/summary",
     response_model=DashboardSummary,
     summary="Retrieve Dashboard Summary Metrics",
-    description="Returns aggregated operational statistics for Agent WAF activity.",
+    description="Returns aggregated operational statistics for Agent WAF activity from PostgreSQL.",
 )
 async def get_dashboard_summary() -> DashboardSummary:
-    """Retrieve top-level operational summary metrics."""
+    """Retrieve top-level operational summary metrics from PostgreSQL (Neon)."""
     logger.info("Dashboard API request: /dashboard/summary")
     try:
         service = DashboardService.get_instance()
-        return service.get_summary()
+        return await service.get_summary()
     except Exception as exc:
         logger.exception("Failed to retrieve dashboard summary metrics", extra={"error": str(exc)})
         raise HTTPException(
@@ -42,7 +42,7 @@ async def get_dashboard_summary() -> DashboardSummary:
     "/audit",
     response_model=list[AuditEvent],
     summary="Retrieve Audit Log Timeline",
-    description="Returns recent audit events with optional tool, decision, and rule filters.",
+    description="Returns recent audit events from PostgreSQL with optional tool, decision, and rule filters.",
 )
 async def get_audit_timeline(
     tool: Annotated[str | None, Query(description="Filter by tool name")] = None,
@@ -50,7 +50,7 @@ async def get_audit_timeline(
     rule: Annotated[str | None, Query(description="Filter by matched rule ID")] = None,
     limit: Annotated[int, Query(ge=1, le=500, description="Maximum items to return")] = 50,
 ) -> list[AuditEvent]:
-    """Retrieve audit timeline with optional filtering."""
+    """Retrieve audit timeline from PostgreSQL (Neon) with optional filtering."""
     logger.info(
         "Dashboard API request: /dashboard/audit",
         extra={"filter_tool": tool, "filter_decision": decision, "filter_rule": rule, "limit": limit},
@@ -65,7 +65,7 @@ async def get_audit_timeline(
 
     try:
         service = DashboardService.get_instance()
-        return service.get_audit_events(tool=tool, decision=decision, rule=rule, limit=limit)
+        return await service.get_audit_events(tool=tool, decision=decision, rule=rule, limit=limit)
     except Exception as exc:
         logger.exception("Failed to retrieve audit timeline", extra={"error": str(exc)})
         raise HTTPException(
@@ -78,14 +78,14 @@ async def get_audit_timeline(
     "/rules",
     response_model=list[RuleStatistics],
     summary="Retrieve Security Rule Analytics",
-    description="Returns operational performance metrics for registered security rules.",
+    description="Returns operational performance metrics for registered security rules from PostgreSQL.",
 )
 async def get_rule_analytics() -> list[RuleStatistics]:
-    """Retrieve rule execution statistics and hit counts."""
+    """Retrieve rule execution statistics and hit counts from PostgreSQL (Neon)."""
     logger.info("Dashboard API request: /dashboard/rules")
     try:
         service = DashboardService.get_instance()
-        return service.get_rule_stats()
+        return await service.get_rule_stats()
     except Exception as exc:
         logger.exception("Failed to retrieve rule analytics", extra={"error": str(exc)})
         raise HTTPException(
@@ -98,14 +98,14 @@ async def get_rule_analytics() -> list[RuleStatistics]:
     "/tools",
     response_model=list[ToolStatistics],
     summary="Retrieve Tool Usage Analytics",
-    description="Returns invocation latency and call volume metrics per registered tool.",
+    description="Returns invocation latency and call volume metrics per registered tool from PostgreSQL.",
 )
 async def get_tool_analytics() -> list[ToolStatistics]:
-    """Retrieve tool invocation statistics."""
+    """Retrieve tool invocation statistics from PostgreSQL (Neon)."""
     logger.info("Dashboard API request: /dashboard/tools")
     try:
         service = DashboardService.get_instance()
-        return service.get_tool_stats()
+        return await service.get_tool_stats()
     except Exception as exc:
         logger.exception("Failed to retrieve tool analytics", extra={"error": str(exc)})
         raise HTTPException(
@@ -118,14 +118,14 @@ async def get_tool_analytics() -> list[ToolStatistics]:
     "/risk",
     response_model=RiskStatistics,
     summary="Retrieve Risk Analytics & Distribution",
-    description="Returns threat distribution and risk severity metrics across inspected requests.",
+    description="Returns threat distribution and risk severity metrics across inspected requests in PostgreSQL.",
 )
 async def get_risk_analytics() -> RiskStatistics:
-    """Retrieve risk score distribution and threat metrics."""
+    """Retrieve risk score distribution and threat metrics from PostgreSQL (Neon)."""
     logger.info("Dashboard API request: /dashboard/risk")
     try:
         service = DashboardService.get_instance()
-        return service.get_risk_stats()
+        return await service.get_risk_stats()
     except Exception as exc:
         logger.exception("Failed to retrieve risk analytics", extra={"error": str(exc)})
         raise HTTPException(
@@ -138,7 +138,7 @@ async def get_risk_analytics() -> RiskStatistics:
     "/health",
     response_model=SystemHealth,
     summary="Retrieve Agent WAF System Health",
-    description="Returns system readiness, component status, database health, and rule counts.",
+    description="Returns system readiness, component status, PostgreSQL database health, and rule counts.",
 )
 async def get_system_health() -> SystemHealth:
     """Retrieve system health and component readiness."""

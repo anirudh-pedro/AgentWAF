@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from collections import Counter
@@ -20,6 +21,7 @@ from .models import (
     ToolStatistics,
 )
 from .publisher import AuditEventPublisher
+from .repository import DashboardRepository
 
 logger = get_logger(__name__)
 
@@ -28,49 +30,13 @@ _START_TIME = time.time()
 _START_TIME_ISO = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-class AuditEventPublisher:
-    """Decoupled Event Publisher managing subscriber listeners for audit events."""
-
-    _instance: "AuditEventPublisher | None" = None
-
-    def __init__(self) -> None:
-        self._subscribers: list[Callable[[AuditEvent], None]] = []
-
-    @classmethod
-    def get_instance(cls) -> "AuditEventPublisher":
-        """Thread-safe singleton accessor for AuditEventPublisher."""
-        if cls._instance is None:
-            with _lock:
-                if cls._instance is None:
-                    cls._instance = cls()
-        return cls._instance
-
-    def subscribe(self, callback: Callable[[AuditEvent], None]) -> None:
-        """Register a subscriber callback listener for audit events."""
-        with _lock:
-            if callback not in self._subscribers:
-                self._subscribers.append(callback)
-
-    def publish(self, event: AuditEvent) -> None:
-        """Publish an audit event to all registered subscriber listeners."""
-        with _lock:
-            subscribers = list(self._subscribers)
-
-        for callback in subscribers:
-            try:
-                callback(event)
-            except Exception as exc:
-                logger.warning("Error in audit event subscriber callback", extra={"error": str(exc)})
-
-
 class DashboardService:
-    """Read-only operational analytics and audit service for Agent WAF monitoring."""
+    """Operational analytics and audit service querying PostgreSQL (Neon) database."""
 
     _instance: "DashboardService | None" = None
-    MAX_AUDIT_LOG_SIZE: int = 1000
 
     def __init__(self) -> None:
-        self._audit_events: list[AuditEvent] = []
+        self.repository = DashboardRepository.get_instance()
         # Subscribe to AuditEventPublisher
         AuditEventPublisher.get_instance().subscribe(self.record_event)
 
@@ -84,11 +50,12 @@ class DashboardService:
         return cls._instance
 
     def record_event(self, event: AuditEvent) -> None:
-        """Record an audit event into the in-memory event stream buffer."""
-        with _lock:
-            self._audit_events.append(event)
-            if len(self._audit_events) > self.MAX_AUDIT_LOG_SIZE:
-                self._audit_events.pop(0)
+        """Record an audit event into PostgreSQL (Neon) database asynchronously."""
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.repository.record_event(event))
+        except RuntimeError:
+            asyncio.run(self.repository.record_event(event))
 
     def _calculate_time_series_trend(self, events: list[AuditEvent]) -> list[TimeSeriesPoint]:
         """Aggregate audit events into minute-based time-series buckets."""
@@ -113,12 +80,10 @@ class DashboardService:
             )
         return trend
 
-    def get_summary(self) -> DashboardSummary:
-        """Aggregate operational summary metrics from audit history and registered engines."""
+    async def get_summary(self) -> DashboardSummary:
+        """Aggregate operational summary metrics directly from PostgreSQL (Neon) audit history."""
         settings = get_settings()
-
-        with _lock:
-            events = list(self._audit_events)
+        events = await self.repository.get_all_events()
 
         total_requests = len(events)
         allowed_requests = sum(1 for e in events if e.policy_result == "ALLOW")
@@ -150,41 +115,27 @@ class DashboardService:
             recent_trend=trend,
         )
 
-    def get_audit_events(
+    async def get_audit_events(
         self,
         tool: str | None = None,
         decision: str | None = None,
         rule: str | None = None,
         limit: int = 50,
     ) -> list[AuditEvent]:
-        """Query recent audit events with optional field filtering."""
-        with _lock:
-            events = list(reversed(self._audit_events))
+        """Query audit log events from PostgreSQL (Neon) with optional filters."""
+        return await self.repository.get_audit_events(tool=tool, decision=decision, rule=rule, limit=limit)
 
-        filtered: list[AuditEvent] = []
-        for e in events:
-            if tool and e.tool_name.lower() != tool.lower():
-                continue
-            if decision and e.policy_result.upper() != decision.upper():
-                continue
-            if rule and rule not in e.matched_rules:
-                continue
-            filtered.append(e)
-            if len(filtered) >= limit:
-                break
-
-        return filtered
-
-    def get_rule_stats(self) -> list[RuleStatistics]:
-        """Retrieve aggregated rule statistics directly from RuleEngine metrics."""
+    async def get_rule_stats(self) -> list[RuleStatistics]:
+        """Retrieve aggregated rule execution statistics from PostgreSQL audit history."""
         engine_rules = RuleEngine.get_instance().list_rules()
-
-        with _lock:
-            events = list(self._audit_events)
+        events = await self.repository.get_all_events()
 
         last_triggered_map: dict[str, str] = {}
-        for e in reversed(events):
+        rule_match_counts: Counter[str] = Counter()
+
+        for e in events:
             for r_id in e.matched_rules:
+                rule_match_counts[r_id] += 1
                 if r_id not in last_triggered_map:
                     last_triggered_map[r_id] = e.timestamp
 
@@ -192,12 +143,13 @@ class DashboardService:
         for r_meta in engine_rules:
             r_id = r_meta["rule_id"]
             m = r_meta.get("metrics", {})
+            db_matches = rule_match_counts.get(r_id, m.get("total_matches", 0))
             results.append(
                 RuleStatistics(
                     rule_id=r_id,
                     rule_name=r_meta["name"],
-                    total_matches=m.get("total_matches", 0),
-                    average_risk=0.8 if m.get("total_matches", 0) > 0 else 0.0,
+                    total_matches=db_matches,
+                    average_risk=0.8 if db_matches > 0 else 0.0,
                     average_execution_time_ms=m.get("avg_evaluation_time_ms", 0.0),
                     last_triggered=last_triggered_map.get(r_id),
                     enabled=r_meta.get("enabled", True),
@@ -206,12 +158,10 @@ class DashboardService:
 
         return results
 
-    def get_tool_stats(self) -> list[ToolStatistics]:
-        """Retrieve aggregated tool invocation statistics."""
+    async def get_tool_stats(self) -> list[ToolStatistics]:
+        """Retrieve aggregated tool call volume and enforcement metrics from PostgreSQL audit history."""
         registered_tools = [t["name"] for t in ToolRegistry.get_instance().list_tools()]
-
-        with _lock:
-            events = list(self._audit_events)
+        events = await self.repository.get_all_events()
 
         tool_metrics: dict[str, dict[str, Any]] = {
             t_name: {"total": 0, "allowed": 0, "blocked": 0, "total_latency": 0.0}
@@ -245,10 +195,9 @@ class DashboardService:
 
         return results
 
-    def get_risk_stats(self) -> RiskStatistics:
-        """Calculate threat distribution and time-series risk metrics across audited requests."""
-        with _lock:
-            events = list(self._audit_events)
+    async def get_risk_stats(self) -> RiskStatistics:
+        """Calculate threat distribution and risk metrics directly from PostgreSQL audit events."""
+        events = await self.repository.get_all_events()
 
         if not events:
             return RiskStatistics(
@@ -322,6 +271,7 @@ class DashboardService:
             "Module 10 – Agent WAF Proxy",
             "Module 11 – Rule Engine",
             "Module 12 – Dashboard & Audit Analytics",
+            "Module 13 – PostgreSQL (Neon) Persistent Audit Storage",
         ]
 
         return SystemHealth(

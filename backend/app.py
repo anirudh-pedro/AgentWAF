@@ -27,8 +27,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
-    # Initialize DatabaseManager and test database connection
+    # Initialize DatabaseManager, create ORM schema tables in PostgreSQL (Neon), and test health
     db_manager = DatabaseManager.get_instance()
+    await db_manager.create_tables()
     is_db_ready = await db_manager.check_health()
     if is_db_ready:
         logger.info("Database connectivity check succeeded during startup")

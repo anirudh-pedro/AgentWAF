@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ShieldAlert, ShieldCheck, Hash, ListFilter } from 'lucide-react';
+import { X, ShieldAlert, ShieldCheck, FileText } from 'lucide-react';
 import type { AuditEvent } from '../types';
 
 interface AuditDrawerProps {
@@ -13,147 +13,118 @@ export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
   const isBlocked = event.policy_result === 'BLOCK';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end">
-      <div
-        className="w-full max-w-xl bg-white border-l border-slate-200 h-full p-6 overflow-y-auto flex flex-col shadow-2xl animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end transition-opacity">
+      <div className="w-full max-w-lg bg-[#1E293B] border-l border-[#334155] h-full flex flex-col justify-between shadow-2xl text-[#F8FAFC]">
+        {/* Drawer Header */}
+        <div className="p-5 border-b border-[#334155] flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div
-              className={`p-2 rounded-lg ${
-                isBlocked ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+              className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                isBlocked ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
               }`}
             >
-              {isBlocked ? <ShieldAlert className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+              {isBlocked ? <ShieldAlert className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Security Inspection Drawer</h3>
-              <p className="text-xs text-slate-500 font-mono">{event.request_id}</p>
+              <h3 className="text-sm font-bold text-[#F8FAFC]">Security Inspection Details</h3>
+              <p className="text-xs text-[#94A3B8] font-mono">{event.request_id}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="mt-6 space-y-6 flex-1 text-xs">
-          {/* Status Overview Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-500 block mb-1">Decision</span>
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                  isBlocked
-                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}
-              >
-                {event.policy_result}
-              </span>
+        {/* Drawer Body Content */}
+        <div className="p-5 overflow-y-auto space-y-5 flex-1 text-xs">
+          {/* Status Banner */}
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between ${
+              isBlocked
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <span className="font-bold uppercase tracking-wider">{event.policy_result} Decision</span>
             </div>
+            <span className="font-mono font-extrabold text-sm">
+              Risk Score: {(event.risk_score * 100).toFixed(0)}% ({event.risk_score})
+            </span>
+          </div>
 
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-500 block mb-1">Risk Score</span>
-              <span
-                className={`text-sm font-bold ${
-                  event.risk_score >= 0.7
-                    ? 'text-rose-600'
-                    : event.risk_score >= 0.4
-                    ? 'text-amber-600'
-                    : 'text-emerald-600'
-                }`}
-              >
-                {(event.risk_score * 100).toFixed(0)}% ({event.risk_score.toFixed(2)})
-              </span>
+          {/* Key Value Metadata */}
+          <div className="space-y-3 bg-[#0F172A] p-4 rounded-xl border border-[#334155]">
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Timestamp</span>
+              <span className="font-mono font-medium text-[#F8FAFC]">{event.timestamp}</span>
             </div>
-
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-500 block mb-1">Target Tool</span>
-              <span className="font-mono text-blue-600 font-semibold">{event.tool_name}</span>
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Target Tool</span>
+              <span className="font-mono font-bold text-[#F8FAFC] capitalize">{event.tool_name}</span>
             </div>
-
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-500 block mb-1">Latency</span>
-              <span className="font-mono text-slate-700">{event.execution_time_ms.toFixed(2)} ms</span>
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Execution Latency</span>
+              <span className="font-mono font-bold text-[#F8FAFC]">{event.execution_time_ms.toFixed(2)} ms</span>
+            </div>
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Trace ID</span>
+              <span className="font-mono text-[#94A3B8]">{event.trace_id || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between items-center py-1">
+              <span className="text-[#94A3B8]">Graph Run ID</span>
+              <span className="font-mono text-[#94A3B8]">{event.graph_run_id || 'N/A'}</span>
             </div>
           </div>
 
-          {/* Matched Rules */}
+          {/* Matched Security Rules */}
           <div>
-            <h4 className="font-semibold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <ListFilter className="w-4 h-4 text-blue-600" /> Matched Security Rules ({event.matched_rules.length})
+            <h4 className="font-bold text-[#F8FAFC] mb-2 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-blue-400" /> Matched Security Rules
             </h4>
             {event.matched_rules.length > 0 ? (
-              <div className="space-y-2">
-                {event.matched_rules.map((rule, idx) => (
+              <div className="space-y-1.5">
+                {event.matched_rules.map((rule, i) => (
                   <div
-                    key={idx}
-                    className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg font-mono text-rose-700 flex items-center justify-between"
+                    key={i}
+                    className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-3 py-2 rounded-lg font-mono text-xs font-semibold"
                   >
-                    <span>{rule}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-semibold">Matched</span>
+                    {rule}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-slate-200">
-                No security rules matched. Request was clean.
-              </p>
+              <div className="bg-[#0F172A] border border-[#334155] text-emerald-400 p-3 rounded-lg text-xs italic">
+                No security rules matched. Clean execution.
+              </div>
             )}
           </div>
 
-          {/* Policy Violations */}
+          {/* Violations Detail */}
           {event.violations.length > 0 && (
             <div>
-              <h4 className="font-semibold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-rose-600" /> Policy Violations
+              <h4 className="font-bold text-[#F8FAFC] mb-2 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-400" /> Policy Violation Findings
               </h4>
               <div className="space-y-2">
-                {event.violations.map((violation, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 bg-rose-50/60 border border-rose-200 rounded-lg text-rose-800"
-                  >
-                    {violation}
+                {event.violations.map((v, i) => (
+                  <div key={i} className="bg-[#0F172A] border border-rose-500/30 rounded-lg p-3 text-rose-200 font-mono leading-relaxed">
+                    {v}
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Tracing Metadata */}
-          <div>
-            <h4 className="font-semibold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Hash className="w-4 h-4 text-slate-500" /> Tracing Telemetry
-            </h4>
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg font-mono space-y-2 text-slate-700">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Timestamp:</span>
-                <span>{event.timestamp}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Trace ID:</span>
-                <span className="text-blue-600">{event.trace_id || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Graph Run ID:</span>
-                <span className="text-blue-600">{event.graph_run_id || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Footer */}
-        <div className="pt-4 mt-6 border-t border-slate-200 flex justify-end">
+        {/* Drawer Footer */}
+        <div className="p-4 border-t border-[#334155] bg-[#0F172A] flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition border border-slate-200"
+            className="px-4 py-2 bg-[#334155] hover:bg-slate-600 text-[#F8FAFC] rounded-lg font-semibold text-xs transition"
           >
             Close Inspector
           </button>

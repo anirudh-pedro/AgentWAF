@@ -72,3 +72,21 @@ export interface SystemHealth {
   memory_usage_mb: number;
   active_modules: string[];
 }
+
+export interface UserQueryRequest {
+  tool_name: string;
+  prompt: string;
+  parameters?: Record<string, any>;
+}
+
+export interface UserQueryResponse {
+  request_id: string;
+  tool_name: string;
+  policy_result: 'ALLOW' | 'BLOCK';
+  risk_score: number;
+  matched_rules: string[];
+  violations: string[];
+  reason?: string;
+  output?: any;
+  execution_time_ms: number;
+}

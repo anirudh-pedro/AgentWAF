@@ -95,12 +95,17 @@ class DatabaseManager:
         return self._session_factory
 
     def get_session(self) -> AsyncSession:
-        """Provide a new, isolated AsyncSession instance from the session factory.
-        
-        NOTE: Each request/task receives its own isolated AsyncSession instance.
-        Sessions MUST NOT be shared across requests or concurrent asyncio tasks.
-        """
+        """Provide a new, isolated AsyncSession instance from the session factory."""
         return self.session_factory()
+
+    async def create_tables(self) -> None:
+        """Create all registered database tables in PostgreSQL if they do not exist."""
+        try:
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database schema initialized successfully in PostgreSQL (Neon)")
+        except Exception as exc:
+            logger.exception("Failed to create database tables", extra={"error": str(exc)})
 
     async def check_health(self) -> bool:
         """Perform lightweight database connectivity check using SELECT 1."""

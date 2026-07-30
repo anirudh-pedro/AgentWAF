@@ -6,7 +6,7 @@ interface StatCardProps {
   value: string | number;
   subtext?: string;
   icon: LucideIcon;
-  variant?: 'lime' | 'navy' | 'rose' | 'amber';
+  variant?: 'lime' | 'navy' | 'rose';
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -16,24 +16,25 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon: Icon,
   variant = 'lime',
 }) => {
-  const badgeStyles = {
-    lime: 'bg-lime-400/20 border-lime-500 text-lime-600',
-    navy: 'bg-slate-900 border-slate-800 text-white',
-    rose: 'bg-rose-500/20 border-rose-500 text-rose-600',
-    amber: 'bg-amber-500/20 border-amber-500 text-amber-600',
-  };
+  const badgeClasses =
+    variant === 'lime'
+      ? 'bg-lime-100 text-lime-600 border-lime-200'
+      : variant === 'rose'
+      ? 'bg-rose-100 text-rose-600 border-rose-200'
+      : 'bg-slate-800 text-white border-slate-700';
 
   return (
-    <div className="bg-white rounded-xl p-4 border border-slate-200 flex items-center justify-between shadow-xs hover:border-slate-300 transition">
-      <div>
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block mb-1">
-          {title}
-        </span>
-        <div className="text-xl font-bold text-slate-900 font-mono">{value}</div>
-        {subtext && <p className="text-[11px] text-slate-500 mt-1">{subtext}</p>}
+    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between h-full">
+      <div className="flex items-center space-x-3 mb-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${badgeClasses}`}>
+          <Icon className="w-5 h-5 stroke-[2.5]" />
+        </div>
+        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
       </div>
-      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shadow-xs ${badgeStyles[variant]}`}>
-        <Icon className="w-5 h-5" />
+
+      <div className="mt-2">
+        <span className="text-2xl font-extrabold text-slate-900 font-mono block">{value}</span>
+        {subtext && <span className="text-[11px] text-slate-400 font-medium mt-1 block">{subtext}</span>}
       </div>
     </div>
   );
