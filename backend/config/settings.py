@@ -46,10 +46,18 @@ class Settings(BaseSettings):
     # Security Configuration
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
-    # Future WAF Configuration
+    # WAF Engine & Security Policy Configuration
     SHADOW_MODE: bool = False
     REQUEST_TIMEOUT: int = Field(default=30, ge=1, le=300)
     RATE_LIMIT_WINDOW: int = Field(default=60, ge=1)
+    DEFAULT_RISK_THRESHOLD: float = Field(default=0.5, ge=0.0, le=1.0)
+    MAX_PARAMETER_LENGTH: int = Field(default=10000, ge=1)
+    MAX_PARAMETER_DEPTH: int = Field(default=5, ge=1)
+    PROMPT_INJECTION_ENABLED: bool = True
+    SQL_INJECTION_ENABLED: bool = True
+    DANGEROUS_TOOL_ENABLED: bool = True
+    PARAMETER_SIZE_ENABLED: bool = True
+    DENIED_TOOL_CATEGORIES: list[str] = ["filesystem", "shell", "terminal", "system"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
