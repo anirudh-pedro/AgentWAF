@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Agent WAF"
     APP_DESCRIPTION: str = "Enterprise-grade Agent Web Application Firewall"
     APP_VERSION: str = "1.0.0"
+    AGENT_ID: str = "langgraph_agent_v1"
     ENVIRONMENT: Literal["development", "staging", "production", "test"] = "development"
     DEBUG: bool = False
 

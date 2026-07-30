@@ -12,6 +12,8 @@ dependencies = [
     "pydantic-settings>=2.3.0",
     "python-dotenv>=1.0.1",
     "aiosqlite>=0.20.0",
+    "langgraph>=0.1.0",
+    "langchain-core>=0.2.0",
 ]
 
 [dependency-groups]
@@ -25,7 +27,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["config", "api", "logger", "db", "middleware", "models", "schemas", "repositories", "services", "proxy", "rules", "dashboard", "tools", "utils"]
+packages = ["config", "api", "logger", "db", "middleware", "models", "schemas", "repositories", "services", "proxy", "rules", "dashboard", "tools", "utils", "agent"]
 
 [build-system]
 requires = ["hatchling"]

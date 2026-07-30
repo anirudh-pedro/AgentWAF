@@ -9,6 +9,7 @@ from config import get_settings
 from db import DatabaseManager
 from logger import get_logger
 from middleware import RequestIDMiddleware, RequestLoggingMiddleware
+from tools import register_builtin_tools
 
 logger = get_logger(__name__)
 
@@ -33,6 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Database connectivity check succeeded during startup")
     else:
         logger.warning("Database connectivity check failed during startup")
+
+    # Register built-in agent tools
+    register_builtin_tools()
 
     logger.info("Application startup completed successfully")
 

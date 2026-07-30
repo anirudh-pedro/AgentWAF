@@ -50,7 +50,7 @@ class ToolRegistry:
             self._tools[tool_name] = tool
             logger.info(
                 "Registered agent tool successfully",
-                extra={"tool_name": tool_name, "version": tool.version}
+                extra={"tool_name": tool_name, "version": tool.version, "category": tool.category}
             )
 
     def unregister(self, name: str) -> None:
@@ -89,6 +89,7 @@ class ToolRegistry:
                     "name": tool.name,
                     "description": tool.description,
                     "version": tool.version,
+                    "category": tool.category,
                 }
                 for tool in self._tools.values()
             ]

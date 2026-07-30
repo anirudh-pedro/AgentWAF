@@ -25,6 +25,11 @@ class BaseTool(ABC):
         """Version string of the tool implementation."""
         return "1.0.0"
 
+    @property
+    def category(self) -> str:
+        """Category grouping for WAF policy rules (e.g., utility, filesystem, network, database, system, llm)."""
+        return "utility"
+
     @abstractmethod
     async def execute(self, request: ToolRequest) -> ToolResponse:
         """Execute tool logic asynchronously for the given request."""
