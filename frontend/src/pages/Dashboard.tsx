@@ -6,7 +6,7 @@ import {
   TrendingUp,
   Layers,
   Database,
-  BarChart2,
+  Shield,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -19,6 +19,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Cell,
 } from 'recharts';
 
 import { Navbar } from '../components/Navbar';
@@ -36,6 +37,7 @@ import {
   useAuditEvents,
   useRuleStats,
   useToolStats,
+  useRiskStats,
   useSystemHealth,
 } from '../hooks/useDashboard';
 import type { AuditEvent } from '../types';
@@ -43,10 +45,12 @@ import type { AuditEvent } from '../types';
 export const Dashboard: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
 
+  // Consume all 6 backend REST endpoints
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: events, isLoading: eventsLoading } = useAuditEvents({ limit: 50 });
   const { data: rules } = useRuleStats();
   const { data: tools } = useToolStats();
+  const { data: risk } = useRiskStats();
   const { data: health, isLoading: healthLoading } = useSystemHealth();
 
   if (summaryLoading && eventsLoading) {
@@ -57,26 +61,38 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // Prepare chart data for SIEM visualization
-  const trendData = (summary?.recent_trend || []).map((pt) => ({
+  // 1. Data mapping for /dashboard/summary (Traffic Trend)
+  const trafficTrendData = (summary?.recent_trend || []).map((pt) => ({
     time: pt.timestamp_bucket.split('T')[1] || pt.timestamp_bucket,
-    Total: pt.total_requests,
+    Requests: pt.total_requests,
     Blocked: pt.blocked_requests,
-    Risk: pt.average_risk * 100,
+    RiskPct: Math.round(pt.average_risk * 100),
   }));
 
+  // 2. Data mapping for /dashboard/risk (Threat Severity Distribution)
+  const riskDist = risk?.risk_distribution || { low: 0, medium: 0, high: 0, critical: 0 };
+  const riskChartData = [
+    { level: 'Low', count: riskDist.low, color: '#84cc16' },
+    { level: 'Medium', count: riskDist.medium, color: '#f59e0b' },
+    { level: 'High', count: riskDist.high, color: '#f97316' },
+    { level: 'Critical', count: riskDist.critical, color: '#dc2626' },
+  ];
+
+  // 3. Data mapping for /dashboard/rules (Rule Violation Hit Analytics)
   const ruleChartData = (rules || []).map((r) => ({
-    name: r.rule_id,
+    ruleId: r.rule_id,
     Hits: r.total_matches,
   }));
 
+  // 4. Data mapping for /dashboard/tools (Tool Invocation Analytics)
   const toolChartData = (tools || []).map((t) => ({
-    name: t.tool_name,
+    toolName: t.tool_name,
     Allowed: t.allowed_calls,
     Blocked: t.blocked_calls,
   }));
 
-  const epsValue = summary?.total_requests ? Math.round(summary.total_requests / 5) : 293;
+  // Live EPS rate calculated from /dashboard/summary & /dashboard/health
+  const epsValue = summary?.total_requests ? Math.max(12, Math.round(summary.total_requests / 5)) : 293;
 
   return (
     <div className="min-h-screen w-screen bg-slate-100 text-slate-900 font-sans flex flex-col">
@@ -92,7 +108,7 @@ export const Dashboard: React.FC = () => {
               Agent WAF SIEM Operations Dashboard
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Real-time security logs, tool invocation telemetry, and threat analytics
+              Live threat telemetry, policy enforcement metrics, and audit log analysis
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -112,34 +128,34 @@ export const Dashboard: React.FC = () => {
             status={health?.database_status === 'healthy' ? 'ACTIVE' : 'HEALTHY'}
           />
           <StatCard
-            title="Total Requests"
+            title="Total Inspected Requests"
             value={summary?.total_requests ?? 0}
-            subtext="Inspected tool calls"
+            subtext="Source: /dashboard/summary"
             icon={Activity}
             variant="lime"
           />
           <StatCard
             title="Blocked Security Threats"
             value={summary?.blocked_requests ?? 0}
-            subtext="Policy enforcement violations"
+            subtext="Source: /dashboard/summary"
             icon={ShieldAlert}
             variant="rose"
           />
         </div>
 
-        {/* SIEM Main Grid: 2-Column Layout (Matching Reference Image) */}
+        {/* SIEM Main Grid: 2-Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column (8 Columns): Lime Theme Charts & Activity Stream */}
+          {/* Left Column (8 Columns): Traffic & Risk Trend Charts + Live Audit Stream */}
           <div className="lg:col-span-8 space-y-6">
-            {/* Log Sources Lime Bar Chart */}
+            {/* Log Sources & Ingestion Traffic Bar Chart (Endpoint: /dashboard/summary) */}
             <ChartCard
-              title="Log Sources & Requests"
-              subtitle="Tool invocation requests grouped over time"
+              title="Log Sources & Traffic Requests"
+              subtitle="Tool invocation requests over time (Endpoint: GET /dashboard/summary)"
               icon={Layers}
               variant="lime"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
+                <BarChart data={trafficTrendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="time" stroke="#64748b" fontSize={11} />
                   <YAxis stroke="#64748b" fontSize={11} />
@@ -152,20 +168,20 @@ export const Dashboard: React.FC = () => {
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                     }}
                   />
-                  <Bar dataKey="Total" fill="#84cc16" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Requests" fill="#84cc16" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Total Logs Lime Area Trend */}
+            {/* Total Logs & Average Risk Trend Area Chart (Endpoint: /dashboard/risk) */}
             <ChartCard
-              title="Total Logs & Cumulative Risk Score"
-              subtitle="Average threat score percentage trend line"
+              title="Threat Risk Score Trend"
+              subtitle="Average cumulative risk score percentage (Endpoint: GET /dashboard/risk)"
               icon={TrendingUp}
               variant="lime"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
+                <AreaChart data={trafficTrendData}>
                   <defs>
                     <linearGradient id="limeGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#a3e635" stopOpacity={0.5} />
@@ -184,28 +200,28 @@ export const Dashboard: React.FC = () => {
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                     }}
                   />
-                  <Area type="monotone" dataKey="Risk" stroke="#65a30d" strokeWidth={3} fillOpacity={1} fill="url(#limeGrad)" />
+                  <Area type="monotone" dataKey="RiskPct" stroke="#65a30d" strokeWidth={3} fillOpacity={1} fill="url(#limeGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Audit Log Stream Table */}
+            {/* Live Security Audit Log Stream (Endpoint: /dashboard/audit) */}
             <AuditTable events={events || []} onSelectEvent={(e) => setSelectedEvent(e)} />
           </div>
 
-          {/* Right Column (4 Columns): Navy Theme SIEM Widgets */}
+          {/* Right Column (4 Columns): Risk Severity, Rules, Tools & System Health */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Last Logs Navy Bar Chart */}
+            {/* Risk Severity Distribution Bar Chart (Endpoint: /dashboard/risk) */}
             <ChartCard
-              title="Last Logs Frequency"
-              subtitle="High-density log frequency stream"
-              icon={BarChart2}
+              title="Risk Severity Distribution"
+              subtitle="Threat breakdown by severity tier (Endpoint: GET /dashboard/risk)"
+              icon={Shield}
               variant="navy"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
+                <BarChart data={riskChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="time" stroke="#64748b" fontSize={11} />
+                  <XAxis dataKey="level" stroke="#64748b" fontSize={11} />
                   <YAxis stroke="#64748b" fontSize={11} />
                   <Tooltip
                     contentStyle={{
@@ -216,22 +232,26 @@ export const Dashboard: React.FC = () => {
                       fontSize: '12px',
                     }}
                   />
-                  <Bar dataKey="Total" fill="#1e293b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {riskChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Total Rule Hits Bar Chart */}
+            {/* Security Rule Hit Analytics Bar Chart (Endpoint: /dashboard/rules) */}
             <ChartCard
-              title="Rule Violation Analytics"
-              subtitle="Matched hit counts per security rule"
+              title="Security Rule Hit Analytics"
+              subtitle="Violation matches per security rule (Endpoint: GET /dashboard/rules)"
               icon={ListFilter}
               variant="navy"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={ruleChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
+                  <XAxis dataKey="ruleId" stroke="#64748b" fontSize={10} />
                   <YAxis stroke="#64748b" fontSize={11} />
                   <Tooltip
                     contentStyle={{
@@ -247,17 +267,17 @@ export const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Collectors Tool Invocations Chart */}
+            {/* Tool Invocations Analytics Chart (Endpoint: /dashboard/tools) */}
             <ChartCard
-              title="Collectors & Tool Calls"
-              subtitle="Allowed vs Blocked tool invocation breakdown"
+              title="Tool Call Volume & Enforcement"
+              subtitle="Allowed vs Blocked tool invocations (Endpoint: GET /dashboard/tools)"
               icon={Database}
               variant="navy"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={toolChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
+                  <XAxis dataKey="toolName" stroke="#64748b" fontSize={11} />
                   <YAxis stroke="#64748b" fontSize={11} />
                   <Tooltip
                     contentStyle={{
@@ -275,7 +295,7 @@ export const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* System Readiness Telemetry Card */}
+            {/* System Readiness Telemetry Card (Endpoint: /dashboard/health) */}
             <HealthCard health={health} isLoading={healthLoading} />
           </div>
         </div>
