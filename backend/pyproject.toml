@@ -1,0 +1,31 @@
+[project]
+name = "agent-waf-backend"
+version = "0.1.0"
+description = "Enterprise-grade Agent Web Application Firewall Backend Foundation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy>=2.0.30",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "python-dotenv>=1.0.1",
+    "aiosqlite>=0.20.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+    "black>=24.0.0",
+    "mypy>=1.10.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["config", "api", "logger", "db", "middleware", "models", "schemas", "repositories", "services", "proxy", "rules", "dashboard", "tools", "utils"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
