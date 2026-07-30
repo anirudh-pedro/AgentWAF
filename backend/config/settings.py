@@ -59,6 +59,21 @@ class Settings(BaseSettings):
     PARAMETER_SIZE_ENABLED: bool = True
     DENIED_TOOL_CATEGORIES: list[str] = ["filesystem", "shell", "terminal", "system"]
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_database_url(cls, v: Any) -> str:
+        """Validate and convert database URLs for SQLAlchemy asyncpg engines (e.g. Neon Postgres)."""
+        if isinstance(v, str):
+            v = v.strip()
+            # Clean query parameters for asyncpg engine driver
+            v = v.replace("&channel_binding=require", "").replace("?channel_binding=require&", "?").replace("?channel_binding=require", "")
+            v = v.replace("sslmode=require", "ssl=require").replace("sslmode=prefer", "ssl=prefer").replace("sslmode=disable", "ssl=disable")
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return str(v)
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Any) -> list[str]:

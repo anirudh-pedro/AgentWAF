@@ -1,0 +1,74 @@
+export interface AuditEvent {
+  request_id: string;
+  timestamp: string;
+  tool_name: string;
+  policy_result: 'ALLOW' | 'BLOCK';
+  risk_score: number;
+  matched_rules: string[];
+  violations: string[];
+  trace_id?: string;
+  graph_run_id?: string;
+  execution_time_ms: number;
+}
+
+export interface TimeSeriesPoint {
+  timestamp_bucket: string;
+  total_requests: number;
+  blocked_requests: number;
+  average_risk: number;
+}
+
+export interface DashboardSummary {
+  total_requests: number;
+  allowed_requests: number;
+  blocked_requests: number;
+  average_risk_score: number;
+  average_execution_time_ms: number;
+  top_triggered_rule: string | null;
+  top_used_tool: string | null;
+  proxy_version: string;
+  recent_trend: TimeSeriesPoint[];
+}
+
+export interface RuleStatistics {
+  rule_id: string;
+  rule_name: string;
+  total_matches: number;
+  average_risk: number;
+  average_execution_time_ms: number;
+  last_triggered: string | null;
+  enabled: boolean;
+}
+
+export interface ToolStatistics {
+  tool_name: string;
+  total_calls: number;
+  allowed_calls: number;
+  blocked_calls: number;
+  average_latency_ms: number;
+}
+
+export interface RiskStatistics {
+  average_risk_score: number;
+  highest_observed_risk: number;
+  blocked_percentage: number;
+  risk_distribution: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  time_series_trend: TimeSeriesPoint[];
+}
+
+export interface SystemHealth {
+  proxy_version: string;
+  rule_count: number;
+  enabled_rule_count: number;
+  registered_tools: string[];
+  database_status: string;
+  uptime_seconds: number;
+  start_time: string;
+  memory_usage_mb: number;
+  active_modules: string[];
+}

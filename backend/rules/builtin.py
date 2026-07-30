@@ -45,13 +45,16 @@ class PromptInjectionRule(BaseRule):
     """Detects prompt injection attack patterns in tool arguments."""
 
     _PATTERNS: tuple[re.Pattern[str], ...] = (
-        re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
+        re.compile(r"ignore\s+(all\s+)?(previous|prior)\s+instructions", re.IGNORECASE),
+        re.compile(r"system\s+override", re.IGNORECASE),
         re.compile(r"system\s+prompt", re.IGNORECASE),
-        re.compile(r"developer\s+message", re.IGNORECASE),
-        re.compile(r"reveal\s+prompt", re.IGNORECASE),
-        re.compile(r"override\s+instructions", re.IGNORECASE),
-        re.compile(r"act\s+as\s+system", re.IGNORECASE),
-        re.compile(r"disregard\s+all\s+prior", re.IGNORECASE),
+        re.compile(r"developer\s+(mode|message)", re.IGNORECASE),
+        re.compile(r"reveal\s+(prompt|keys|credentials|secrets)", re.IGNORECASE),
+        re.compile(r"override\s+(instructions|policy|policies|security|firewall)", re.IGNORECASE),
+        re.compile(r"act\s+as\s+(system|admin|root|jailbroken)", re.IGNORECASE),
+        re.compile(r"disregard\s+(all\s+)?prior", re.IGNORECASE),
+        re.compile(r"jailbreak", re.IGNORECASE),
+        re.compile(r"disable\s+(firewall|security|policy|policies)", re.IGNORECASE),
     )
 
     @property
@@ -234,7 +237,7 @@ class DangerousToolRule(BaseRule):
                 rule_name=self.name,
                 severity=self.severity,
                 risk_score=0.8,
-                violation=f"Tool '{request.tool_name}' belongs to prohibited category '{tool_category}'",
+                violation=f"Requested tool '{request.tool_name}' belongs to denied category '{tool_category}'",
                 recommendation="Deny access to system-level/filesystem tools",
                 reason="Tool category is present in settings.DENIED_TOOL_CATEGORIES",
                 metadata={"tool_category": tool_category, "denied_categories": list(denied_categories)},
