@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from config import get_settings
+from dashboard.models import AuditEvent
+from dashboard.publisher import AuditEventPublisher
 from logger import get_logger
 from tools.schemas import ToolRequest, ToolResponse
 from .models import InspectionContext, PolicyDecision, PolicyEvaluationResult
@@ -69,6 +71,34 @@ class AgentWAFProxy:
         """Delegate tool discovery to inner executor."""
         return self.inner_executor.discover_tools()
 
+    def _publish_audit_event(
+        self,
+        request: ToolRequest,
+        decision: str,
+        risk_score: float,
+        matched_rules: list[str],
+        violations: list[str],
+        execution_time_ms: float,
+        timestamp: str,
+    ) -> None:
+        """Publish audit event via AuditEventPublisher for subscriber ingestion."""
+        try:
+            event = AuditEvent(
+                request_id=request.request_id,
+                timestamp=timestamp,
+                tool_name=request.tool_name,
+                policy_result=decision,
+                risk_score=risk_score,
+                matched_rules=matched_rules,
+                violations=violations,
+                trace_id=request.metadata.get("trace_id", request.request_id),
+                graph_run_id=request.metadata.get("graph_run_id"),
+                execution_time_ms=execution_time_ms,
+            )
+            AuditEventPublisher.get_instance().publish(event)
+        except Exception as exc:
+            logger.warning("Failed to publish audit event via AuditEventPublisher", extra={"error": str(exc)})
+
     async def execute_tool(self, request: ToolRequest) -> ToolResponse:
         """Inspect ToolRequest, evaluate policy, and conditionally forward or block execution."""
         inspection_start = time.perf_counter()
@@ -107,6 +137,9 @@ class AgentWAFProxy:
                     "error": str(exc),
                 },
             )
+            self._publish_audit_event(
+                request, "BLOCK", 1.0, ["FAIL_CLOSED_EXCEPTION"], [str(exc)], inspection_duration, dt_str
+            )
             return ToolResponse(
                 success=False,
                 result=None,
@@ -141,6 +174,15 @@ class AgentWAFProxy:
                     "violations": eval_result.violations,
                 },
             )
+            self._publish_audit_event(
+                request,
+                "BLOCK",
+                eval_result.risk_score,
+                eval_result.matched_rules,
+                eval_result.violations,
+                inspection_duration,
+                dt_str,
+            )
             return ToolResponse(
                 success=False,
                 result=None,
@@ -173,6 +215,17 @@ class AgentWAFProxy:
         )
 
         response = await self.inner_executor.execute_tool(request)
+        total_duration = inspection_duration + response.execution_time_ms
+
+        self._publish_audit_event(
+            request,
+            "ALLOW",
+            eval_result.risk_score,
+            eval_result.matched_rules,
+            [],
+            total_duration,
+            dt_str,
+        )
 
         # 5. Non-Destructive Metadata Merge: preserve tool metadata for existing keys
         audit_metadata: dict[str, Any] = {
