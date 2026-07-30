@@ -1,5 +1,7 @@
 # Environment & Virtual Environments
 .env
+.env.*
+!.env.example
 .venv/
 env/
 venv/
@@ -9,6 +11,12 @@ ENV/
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+
+# Build & Package Distribution Artifacts
+build/
+dist/
+*.egg-info/
 
 # Testing & Linting Tooling
 .pytest_cache/
@@ -17,10 +25,16 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Databases
+# Databases & Runtime Storage
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+agent_waf.db
+
+# Logs & Temporary Files
+*.log
+logs/
 
 # IDEs & System Files
 .vscode/

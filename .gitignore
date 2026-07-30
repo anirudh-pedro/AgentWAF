@@ -1,0 +1,76 @@
+# ==============================================================================
+# Agent WAF - Root Git Ignore Configuration
+# ==============================================================================
+
+# Environment Files & Secrets
+.env
+.env.*
+!.env.example
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Build & Package Distribution Artifacts
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Code Quality Tools
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.nox/
+.tox/
+
+# Local Databases & Storage
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+agent_waf.db
+
+# Logs & Temporary Files
+*.log
+logs/
+tmp/
+temp/
+
+# IDE & Editor Configurations
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# System & OS Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
