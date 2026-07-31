@@ -70,14 +70,14 @@ As enterprises deploy autonomous LLM agents (using ReAct loops, LangChain, LangG
 ```mermaid
 flowchart TD
     subgraph User & Frontend Layer
-        User([User / API Client]) -->|1. Submit Goal Prompt| Console[React Goal Execution Console]
+        User["User / API Client"] -->|1. Submit Goal Prompt| Console[React Goal Execution Console]
         Console <-->|WebSocket Stream /ws/dashboard| WSManager[WebSocket Connection Manager]
     end
 
     subgraph Agent Reasoning Layer
         Console -->|2. POST /api/v1/agent/execute| WorkflowExec[Workflow Executor Engine]
         WorkflowExec -->|3. Get Next Tool Step| GroqPlanner[Groq LLM ReAct Planner]
-        GroqPlanner -->|Fallback Failover Chain| Models[Llama 3.3 70B -> Llama 3.1 8B -> Gemma 2 9B -> Fallback Machine]
+        GroqPlanner -->|Fallback Failover Chain| Models["Llama 3.3 70B -> Llama 3.1 8B -> Gemma 2 9B -> Fallback Machine"]
     end
 
     subgraph Agent WAF Security Proxy Layer
@@ -86,24 +86,24 @@ flowchart TD
         
         subgraph Policy Engine
             Proxy --> Evaluator[Rule Engine Policy Evaluator]
-            Evaluator --> R1[RULE-SEC-PARAM-SIZE-004<br/>Payload Length Safeguard (P1)]
-            Evaluator --> R2[RULE-SEC-PROMPT-INJ-001<br/>Prompt Injection Rule (P10)]
-            Evaluator --> R3[RULE-SEC-SQL-INJ-002<br/>SQL Injection Rule (P20)]
-            Evaluator --> R4[RULE-SEC-DANGEROUS-TOOL-003<br/>Dangerous Tool Policy (P30)]
-            Evaluator --> R5[RULE-SEC-DATA-SCOPE-005<br/>Data Scope & Tenant Isolation (P35)]
-            Evaluator --> R6[RULE-SEC-SEQUENCE-006<br/>Sequence Dependency Rule (P40)]
-            Evaluator --> R7[RULE-SEC-CREDENTIAL-009<br/>Sensitive Credential Rule (P45)]
-            Evaluator --> R8[RULE-SEC-EMAIL-008<br/>Email Policy Whitelist (P50)]
+            Evaluator --> R1["RULE-SEC-PARAM-SIZE-004<br/>Payload Length Safeguard (P1)"]
+            Evaluator --> R2["RULE-SEC-PROMPT-INJ-001<br/>Prompt Injection Rule (P10)"]
+            Evaluator --> R3["RULE-SEC-SQL-INJ-002<br/>SQL Injection Rule (P20)"]
+            Evaluator --> R4["RULE-SEC-DANGEROUS-TOOL-003<br/>Dangerous Tool Policy (P30)"]
+            Evaluator --> R5["RULE-SEC-DATA-SCOPE-005<br/>Data Scope & Tenant Isolation (P35)"]
+            Evaluator --> R6["RULE-SEC-SEQUENCE-006<br/>Sequence Dependency Rule (P40)"]
+            Evaluator --> R7["RULE-SEC-CREDENTIAL-009<br/>Sensitive Credential Rule (P45)"]
+            Evaluator --> R8["RULE-SEC-EMAIL-008<br/>Email Policy Whitelist (P50)"]
         end
         
-        Evaluator -->|Compute Aggregated Risk Score| Decision{Cumulative Risk > 0.50?}
+        Evaluator -->|Compute Aggregated Risk Score| Decision{"Cumulative Risk > 0.50?"}
     end
 
     subgraph Tool Execution & Output Guard Layer
         Decision -->|BLOCK| BlockHandler[Fail-Closed Block Response]
         Decision -->|ALLOW| InnerExec[Agent Tool Executor]
         
-        InnerExec --> EnterpriseTools[Enterprise Tools<br/>SearchInvoice / SendEmail / QueryOrders]
+        InnerExec --> EnterpriseTools["Enterprise Tools<br/>SearchInvoice / SendEmail / QueryOrders"]
         EnterpriseTools -->|Raw Result| OutputGuard[Tool Output Guard]
         
         OutputGuard -->|Secret Redaction| Redactor[Secret Redactor]
@@ -116,7 +116,7 @@ flowchart TD
     subgraph Database & Telemetry Layer
         BlockHandler --> AuditLog[AuditEventPublisher]
         OutputGuard --> AuditLog
-        AuditLog --> NeonDB[(Neon PostgreSQL Database)]
+        AuditLog --> NeonDB[("Neon PostgreSQL Database")]
         AuditLog --> WSManager
     end
 ```
@@ -338,22 +338,22 @@ Agent WAF is fully deployed on **AWS ECS Fargate** with multi-AZ high availabili
 
 ```mermaid
 flowchart TD
-    Client([Client Browser / API Client]) --> ALB[AWS Application Load Balancer<br/>agent-waf-alb]
+    Client["Client Browser / API Client"] --> ALB["AWS Application Load Balancer<br/>agent-waf-alb"]
     
     subgraph Path-Based Listener Rules
-        ALB -->|/api/*, /ws/*, /health| BackendTG[Backend Target Group<br/>agent-waf-backend-tg:8000]
-        ALB -->|/* Default| FrontendTG[Frontend Target Group<br/>agent-waf-frontend-tg:80]
+        ALB -->|/api/*, /ws/*, /health| BackendTG["Backend Target Group<br/>agent-waf-backend-tg:8000"]
+        ALB -->|/* Default| FrontendTG["Frontend Target Group<br/>agent-waf-frontend-tg:80"]
     end
 
     subgraph AWS ECS Fargate Cluster
-        BackendTG --> BackendTasks[Backend Fargate Tasks<br/>FastAPI Async Workers]
-        FrontendTG --> FrontendTasks[Frontend Fargate Tasks<br/>Nginx SPA Static Assets]
+        BackendTG --> BackendTasks["Backend Fargate Tasks<br/>FastAPI Async Workers"]
+        FrontendTG --> FrontendTasks["Frontend Fargate Tasks<br/>Nginx SPA Static Assets"]
     end
 
     subgraph External & Managed Services
-        BackendTasks --> GroqAPI[Groq LLM Cloud API]
-        BackendTasks --> NeonDB[(Neon PostgreSQL Serverless DB)]
-        BackendTasks --> CloudWatch[AWS CloudWatch Logs]
+        BackendTasks --> GroqAPI["Groq LLM Cloud API"]
+        BackendTasks --> NeonDB[("Neon PostgreSQL Serverless DB")]
+        BackendTasks --> CloudWatch["AWS CloudWatch Logs"]
     end
 ```
 
