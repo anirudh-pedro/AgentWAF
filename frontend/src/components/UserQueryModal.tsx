@@ -259,8 +259,8 @@ export const UserQueryModal: React.FC<UserQueryModalProps> = ({ isOpen, onClose,
                         )}
 
                         {!stepBlocked && step.output && (
-                          <div className="mt-2.5 p-2.5 rounded-lg bg-slate-900 text-emerald-400 font-mono text-[10px] overflow-x-auto shadow-2xs">
-                            <span className="font-bold text-slate-400 block mb-0.5 font-sans text-[10px]">Observation / Tool Output:</span>
+                          <div className="mt-2.5 p-2.5 rounded-lg bg-emerald-50/90 border border-emerald-200 text-emerald-900 font-mono text-[10px] overflow-x-auto shadow-2xs">
+                            <span className="font-bold text-emerald-700 block mb-0.5 font-sans text-[10px]">Observation / Tool Output:</span>
                             {typeof step.output === 'object' ? JSON.stringify(step.output, null, 2) : String(step.output)}
                           </div>
                         )}
@@ -271,11 +271,11 @@ export const UserQueryModal: React.FC<UserQueryModalProps> = ({ isOpen, onClose,
               </div>
 
               {/* Final Summary Response */}
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-white shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+              <div className="bg-slate-100/90 p-4 rounded-xl border border-slate-200 text-slate-900 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                   Final Response Output
                 </span>
-                <p className="text-xs text-slate-100 font-medium leading-relaxed font-sans">
+                <p className="text-xs text-slate-800 font-medium leading-relaxed font-sans">
                   {workflowResult.final_response}
                 </p>
               </div>
