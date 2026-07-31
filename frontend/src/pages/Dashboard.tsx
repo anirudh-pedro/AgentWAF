@@ -79,33 +79,36 @@ export const Dashboard: React.FC = () => {
   }
 
   // 1. Data mapping for /dashboard/summary (Traffic Trend)
-  const trafficTrendData = (summary?.recent_trend || []).map((pt) => ({
-    time: pt.timestamp_bucket.split('T')[1] || pt.timestamp_bucket,
-    Requests: pt.total_requests,
-    Blocked: pt.blocked_requests,
-    RiskPct: Math.round(pt.average_risk * 100),
+  const trendList = Array.isArray(summary?.recent_trend) ? summary!.recent_trend : [];
+  const trafficTrendData = trendList.map((pt) => ({
+    time: (pt.timestamp_bucket || '').split('T')[1] || pt.timestamp_bucket,
+    Requests: pt.total_requests || 0,
+    Blocked: pt.blocked_requests || 0,
+    RiskPct: Math.round((pt.average_risk || 0) * 100),
   }));
 
   // 2. Data mapping for /dashboard/risk (Threat Severity Distribution)
   const riskDist = risk?.risk_distribution || { low: 0, medium: 0, high: 0, critical: 0 };
   const riskChartData = [
-    { level: 'Low', count: riskDist.low },
-    { level: 'Medium', count: riskDist.medium },
-    { level: 'High', count: riskDist.high },
-    { level: 'Critical', count: riskDist.critical },
+    { level: 'Low', count: riskDist.low || 0 },
+    { level: 'Medium', count: riskDist.medium || 0 },
+    { level: 'High', count: riskDist.high || 0 },
+    { level: 'Critical', count: riskDist.critical || 0 },
   ];
 
   // 3. Data mapping for /dashboard/rules (Rule Hit Analytics)
-  const ruleChartData = (rules || []).map((r) => ({
+  const safeRules = Array.isArray(rules) ? rules : [];
+  const ruleChartData = safeRules.map((r) => ({
     ruleId: r.rule_id,
-    Hits: r.total_matches,
+    Hits: r.total_matches || 0,
   }));
 
   // 4. Data mapping for /dashboard/tools (Tool Invocation Analytics)
-  const toolChartData = (tools || []).map((t) => ({
+  const safeTools = Array.isArray(tools) ? tools : [];
+  const toolChartData = safeTools.map((t) => ({
     toolName: t.tool_name,
-    Allowed: t.allowed_calls,
-    Blocked: t.blocked_calls,
+    Allowed: t.allowed_calls || 0,
+    Blocked: t.blocked_calls || 0,
   }));
 
   // Real-time EPS calculated from live backend database requests

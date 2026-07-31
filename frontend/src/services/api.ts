@@ -35,18 +35,22 @@ export const api = {
     rule?: string;
     limit?: number;
   }): Promise<AuditEvent[]> => {
-    const response = await apiClient.get<AuditEvent[]>('/dashboard/audit', { params });
-    return response.data;
+    const response = await apiClient.get('/dashboard/audit', { params });
+    const data = response.data as any;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.events)) return data.events;
+    if (data && Array.isArray(data.data)) return data.data;
+    return [];
   },
 
   getRuleStats: async (): Promise<RuleStatistics[]> => {
     const response = await apiClient.get<RuleStatistics[]>('/dashboard/rules');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   getToolStats: async (): Promise<ToolStatistics[]> => {
     const response = await apiClient.get<ToolStatistics[]>('/dashboard/tools');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   getRiskStats: async (): Promise<RiskStatistics> => {

@@ -13,10 +13,11 @@ export const AuditTable: React.FC<AuditTableProps> = ({ events, onSelectEvent })
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
 
-  const filteredEvents = events.filter((e) => {
+  const safeEvents = Array.isArray(events) ? events : [];
+  const filteredEvents = safeEvents.filter((e) => {
     const matchesSearch =
-      e.request_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.tool_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (e.request_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (e.tool_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (e.matched_rules && e.matched_rules.some((r) => r.toLowerCase().includes(searchTerm.toLowerCase()))) ||
       (e.agent_scope && e.agent_scope.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (e.requested_resource && e.requested_resource.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -24,8 +25,8 @@ export const AuditTable: React.FC<AuditTableProps> = ({ events, onSelectEvent })
     const matchesDecision =
       decisionFilter === 'ALL' ||
       (decisionFilter === 'SHADOW'
-        ? e.policy_result.toUpperCase().includes('SHADOW')
-        : e.policy_result.toUpperCase() === decisionFilter);
+        ? (e.policy_result || '').toUpperCase().includes('SHADOW')
+        : (e.policy_result || '').toUpperCase() === decisionFilter);
 
     return matchesSearch && matchesDecision;
   });
