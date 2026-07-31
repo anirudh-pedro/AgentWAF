@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["development", "staging", "production", "test"] = "development"
     DEBUG: bool = False
 
+    # WAF Operating Mode: ENFORCE (Active blocking) | SHADOW (Log & monitor only)
+    WAF_MODE: Literal["ENFORCE", "SHADOW"] = "ENFORCE"
+
     # Server Configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
@@ -51,13 +54,67 @@ class Settings(BaseSettings):
     REQUEST_TIMEOUT: int = Field(default=30, ge=1, le=300)
     RATE_LIMIT_WINDOW: int = Field(default=60, ge=1)
     DEFAULT_RISK_THRESHOLD: float = Field(default=0.5, ge=0.0, le=1.0)
-    MAX_PARAMETER_LENGTH: int = Field(default=10000, ge=1)
+    MAX_PARAMETER_LENGTH: int = Field(default=5000, ge=1)
     MAX_PARAMETER_DEPTH: int = Field(default=5, ge=1)
     PROMPT_INJECTION_ENABLED: bool = True
     SQL_INJECTION_ENABLED: bool = True
     DANGEROUS_TOOL_ENABLED: bool = True
     PARAMETER_SIZE_ENABLED: bool = True
     DENIED_TOOL_CATEGORIES: list[str] = ["filesystem", "shell", "terminal", "system"]
+    GROQ_API_KEY: str | None = Field(default=None, description="Groq LLM API Key")
+    GROQ_PLANNER_MODELS: Any = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+    PERMITTED_DATA_SCOPES: list[str] = ["customer_123", "doc_99", "project_alpha", "dataset_public", "project_report"]
+
+    # Gmail SMTP & Email Security Configuration
+    GMAIL_EMAIL: str = ""
+    GMAIL_APP_PASSWORD: str = ""
+    ALLOWED_EMAIL_DOMAINS: Any = ["gmail.com", "company.com", "enterprise.internal", "example.com"]
+
+    @property
+    def RISK_THRESHOLD(self) -> float:
+        """Alias property for DEFAULT_RISK_THRESHOLD."""
+        return self.DEFAULT_RISK_THRESHOLD
+
+    @property
+    def is_shadow_mode(self) -> bool:
+        """Check if WAF is operating in SHADOW mode (either WAF_MODE='SHADOW' or SHADOW_MODE=True)."""
+        return self.WAF_MODE == "SHADOW" or self.SHADOW_MODE
+
+    @field_validator("ENVIRONMENT", mode="before")
+    @classmethod
+    def normalize_environment(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_lower = v.strip().lower()
+            if v_lower in ("development", "staging", "production", "test"):
+                return v_lower
+        return "production"
+
+    @field_validator("WAF_MODE", mode="before")
+    @classmethod
+    def normalize_waf_mode(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_upper = v.strip().upper()
+            if v_upper in ("ENFORCE", "SHADOW"):
+                return v_upper
+        return "ENFORCE"
+
+    @field_validator("LOG_LEVEL", mode="before")
+    @classmethod
+    def normalize_log_level(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_upper = v.strip().upper()
+            if v_upper in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+                return v_upper
+        return "INFO"
+
+    @field_validator("LOG_FORMAT", mode="before")
+    @classmethod
+    def normalize_log_format(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_lower = v.strip().lower()
+            if v_lower in ("json", "text"):
+                return v_lower
+        return "json"
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -93,6 +150,24 @@ class Settings(BaseSettings):
         elif isinstance(v, list):
             return [str(origin) for origin in v]
         raise ValueError(f"Invalid format for CORS_ORIGINS: {v}")
+
+    @field_validator("ALLOWED_EMAIL_DOMAINS", mode="before")
+    @classmethod
+    def assemble_allowed_email_domains(cls, v: Any) -> list[str]:
+        """Validate and parse ALLOWED_EMAIL_DOMAINS from CSV or JSON list."""
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    pass
+            return [dom.strip().lower() for dom in v.split(",") if dom.strip()]
+        elif isinstance(v, list):
+            return [str(dom).strip().lower() for dom in v]
+        return ["gmail.com", "company.com", "enterprise.internal", "example.com"]
 
     @property
     def is_development(self) -> bool:

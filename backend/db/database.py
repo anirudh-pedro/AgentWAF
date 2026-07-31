@@ -1,3 +1,4 @@
+import asyncio
 from threading import Lock
 from typing import Any
 from sqlalchemy import text
@@ -108,17 +109,17 @@ class DatabaseManager:
             logger.exception("Failed to create database tables", extra={"error": str(exc)})
 
     async def check_health(self) -> bool:
-        """Perform lightweight database connectivity check using SELECT 1."""
+        """Perform lightweight database connectivity check using SELECT 1 with strict 3s timeout."""
         try:
             async with self.session_factory() as session:
-                val = await session.scalar(text("SELECT 1"))
+                val = await asyncio.wait_for(session.scalar(text("SELECT 1")), timeout=3.0)
                 if val == 1:
                     logger.debug("Database health check passed")
                     return True
                 logger.warning("Database health check returned unexpected scalar value", extra={"result": val})
                 return False
         except Exception as exc:
-            logger.error("Database health check failed", extra={"error": str(exc)})
+            logger.error("Database health check failed or timed out", extra={"error": str(exc)})
             return False
 
     async def close(self) -> None:

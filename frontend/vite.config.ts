@@ -11,18 +11,38 @@ export default defineConfig({
       '/agent': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
       },
       '/dashboard': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
       },
       '/health': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
       },
       '/ready': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
+      },
+      '/ws': {
+        target: 'http://127.0.0.1:8000',
+        ws: true,
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
       },
     },
   },

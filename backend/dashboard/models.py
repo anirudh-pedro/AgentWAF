@@ -3,15 +3,27 @@ from pydantic import BaseModel, Field
 
 
 class AuditEvent(BaseModel):
-    """Pydantic model representing a normalized security audit log record."""
+    """Pydantic model representing a normalized security audit log record with extended telemetry fields."""
 
+    event_id: str | None = Field(default=None, description="Event ID")
     request_id: str = Field(..., description="Unique correlation request ID")
     timestamp: str = Field(..., description="UTC ISO 8601 timestamp")
     tool_name: str = Field(..., description="Target tool name being invoked")
-    policy_result: str = Field(..., description="Policy decision (ALLOW or BLOCK)")
+    action: str = Field(default="EXECUTE", description="Action name")
+    policy_result: str = Field(..., description="Policy decision (ALLOW, BLOCK, or SHADOW_BLOCK)")
     risk_score: float = Field(default=0.0, description="Risk score between 0.0 and 1.0")
     matched_rules: list[str] = Field(default_factory=list, description="List of matched security rule IDs")
     violations: list[str] = Field(default_factory=list, description="List of specific security policy violations")
+    parameters: dict[str, Any] | None = Field(default_factory=dict, description="Sanitized request parameters")
+
+    # Extended Audit Fields
+    agent_scope: str | None = Field(default=None, description="Declared agent data scope")
+    requested_resource: str | None = Field(default=None, description="Target resource ID requested")
+    previous_tool: str | None = Field(default=None, description="Previous tool called in current session")
+    current_tool: str | None = Field(default=None, description="Current tool being invoked")
+    sequence_status: str | None = Field(default=None, description="Sequence check status (VALID or VIOLATION)")
+    waf_mode: str = Field(default="ENFORCE", description="Active WAF mode (ENFORCE or SHADOW)")
+
     trace_id: str | None = Field(default=None, description="Distributed trace ID")
     graph_run_id: str | None = Field(default=None, description="LangGraph execution run ID")
     execution_time_ms: float = Field(default=0.0, description="Execution duration in milliseconds")

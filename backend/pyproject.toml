@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["config", "api", "logger", "db", "middleware", "models", "schemas", "repositories", "services", "proxy", "rules", "dashboard", "tools", "utils", "agent"]
+packages = ["config", "api", "logger", "db", "middleware", "proxy", "rules", "dashboard", "tools", "agent"]
 
 [build-system]
 requires = ["hatchling"]

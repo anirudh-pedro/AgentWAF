@@ -1,6 +1,7 @@
 from logger import get_logger
 from .base import BaseTool
 from .implementations import CalculatorTool, DateTimeTool, EchoTool
+from .implementations.mock_enterprise import register_mock_enterprise_tools
 from .registry import ToolRegistry
 
 logger = get_logger(__name__)
@@ -31,6 +32,10 @@ def register_builtin_tools() -> None:
                 "Skipping tool registration (already registered)",
                 extra={"tool_name": tool_instance.name, "reason": str(exc)}
             )
+
+    # Register mock enterprise tools (SearchInvoice, ReadCustomer, etc.)
+    mock_names = register_mock_enterprise_tools()
+    registered_names.extend(mock_names)
 
     if registered_names:
         logger.info(

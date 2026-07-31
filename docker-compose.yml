@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  agent-waf-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agent-waf-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - WAF_MODE=ENFORCE
+      - DATABASE_URL=${DATABASE_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  agent-waf-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: agent-waf-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      agent-waf-backend:
+        condition: service_healthy
+    restart: always

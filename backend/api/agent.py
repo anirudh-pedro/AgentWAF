@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from agent.executor import AgentToolExecutor
+from agent.workflow_executor import WorkflowExecutor
 from logger import get_logger
 from proxy.proxy import AgentWAFProxy
 from rules.engine import RuleEngine, RuleEnginePolicyEvaluator
@@ -18,8 +19,19 @@ router = APIRouter(prefix="/agent", tags=["Agent Execution & WAF Proxy Inspectio
 
 
 class UserQueryRequest(BaseModel):
-    tool_name: str = Field(..., description="Target tool to invoke (e.g., echo, calculator, datetime)")
-    prompt: str = Field(..., description="User prompt or parameter input for WAF inspection")
+    tool_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+        description="Target tool to invoke (e.g., echo, calculator, datetime)",
+    )
+    prompt: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="User prompt or parameter input for WAF inspection (max 10,000 chars)",
+    )
     parameters: dict[str, Any] | None = Field(default=None, description="Optional tool parameters dict")
 
 
@@ -33,6 +45,37 @@ class UserQueryResponse(BaseModel):
     reason: str | None = None
     output: Any | None = None
     execution_time_ms: float
+
+
+class AgentRunRequest(BaseModel):
+    goal: str = Field(..., min_length=1, max_length=5000, description="Natural language user goal or prompt")
+    session_id: str | None = Field(default=None, description="Optional session ID for stateful tracking")
+
+
+class AgentRunStep(BaseModel):
+    step_index: int
+    tool: str
+    parameters: dict[str, Any]
+    status: str
+    risk: float
+    matched_rules: list[str]
+    violations: list[str]
+    reason: str | None = None
+    thought: str | None = None
+    output: Any | None = None
+    execution_time_ms: float
+
+
+class AgentRunResponse(BaseModel):
+    workflow: str
+    goal: str
+    status: str
+    session_id: str
+    total_steps: int
+    steps: list[AgentRunStep]
+    blocked_info: AgentRunStep | None = None
+    final_response: str
+    total_execution_time_ms: float
 
 
 _proxy_instance: AgentWAFProxy | None = None
@@ -75,7 +118,7 @@ def parse_calculator_params(prompt: str) -> dict[str, Any]:
 @router.post(
     "/execute",
     response_model=UserQueryResponse,
-    summary="Execute Agent Request Through WAF Inspection Proxy",
+    summary="Execute Single Agent Request Through WAF Inspection Proxy",
     description="Inspects user prompt against Agent WAF security rules and executes tool if policy decision is ALLOW.",
 )
 async def execute_agent_query(payload: UserQueryRequest) -> UserQueryResponse:
@@ -116,7 +159,7 @@ async def execute_agent_query(payload: UserQueryRequest) -> UserQueryResponse:
         violation_list = meta.get("violations", [])
         reason_str = meta.get("reason") or tool_resp.error
 
-        is_allowed = policy_res == "ALLOW"
+        is_allowed = policy_res in ("ALLOW", "SHADOW_BLOCK")
         output_data = tool_resp.result if (is_allowed and tool_resp.success) else ({"error": tool_resp.error} if is_allowed else None)
 
         return UserQueryResponse(
@@ -136,4 +179,31 @@ async def execute_agent_query(payload: UserQueryRequest) -> UserQueryResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"WAF Proxy inspection failed: {str(exc)}",
+        ) from exc
+
+
+@router.post(
+    "/run",
+    response_model=AgentRunResponse,
+    summary="Run AI Agent Goal Through ReAct Reasoning Loop & WAF Proxy",
+    description="Generates ReAct reasoning loop (MAX_STEPS=5) via Groq LLM API and executes every tool call strictly through Agent WAF Proxy.",
+)
+async def run_agent_workflow(payload: AgentRunRequest) -> AgentRunResponse:
+    """Submit a natural language goal for multi-step AI Agent workflow planning and policy-enforced execution."""
+    logger.info(
+        "Agent WAF Run API request received",
+        extra={"goal": payload.goal, "session_id": payload.session_id},
+    )
+
+    try:
+        waf_proxy = get_waf_proxy()
+        workflow_engine = WorkflowExecutor(proxy=waf_proxy)
+        result = await workflow_engine.run_agent_loop(goal=payload.goal, session_id=payload.session_id)
+        return AgentRunResponse(**result)
+
+    except Exception as exc:
+        logger.exception("Failed to execute agent workflow through WAF proxy", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Agent workflow execution failed: {str(exc)}",
         ) from exc

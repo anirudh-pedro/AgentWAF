@@ -1,12 +1,14 @@
 """Isolated unit tests for Agent WAF security rules.
 
-Tests PromptInjectionRule, SQLInjectionRule, DangerousToolRule, and ParameterSizeRule independently.
+Tests PromptInjectionRule, SQLInjectionRule, DangerousToolRule, ParameterSizeRule, and EmailSecurityRule independently.
 """
 
 import pytest
 from proxy.models import InspectionContext
 from rules.builtin import (
+    CredentialSecurityRule,
     DangerousToolRule,
+    EmailSecurityRule,
     ParameterSizeRule,
     PromptInjectionRule,
     SQLInjectionRule,
@@ -130,3 +132,68 @@ async def test_parameter_size_rule():
     res_normal = await rule.evaluate(req_normal, make_context())
     assert res_normal.matched is False
     assert res_normal.risk_score == 0.0
+
+
+@pytest.mark.asyncio
+async def test_email_security_rule_valid_recipient():
+    rule = EmailSecurityRule()
+
+    req = ToolRequest(tool_name="SendEmail", parameters={"recipient": "user@gmail.com", "subject": "Test", "body": "Hello"})
+    res = await rule.evaluate(req, make_context(tool_name="SendEmail"))
+    assert res.matched is False
+    assert res.risk_score == 0.0
+
+
+@pytest.mark.asyncio
+async def test_email_security_rule_blocked_domain():
+    rule = EmailSecurityRule()
+
+    req = ToolRequest(tool_name="SendEmail", parameters={"recipient": "hacker@malicious-attacker.xyz", "subject": "Data Exfiltration"})
+    res = await rule.evaluate(req, make_context(tool_name="SendEmail"))
+    assert res.matched is True
+    assert res.risk_score >= 0.8
+    assert res.rule_id == "RULE-SEC-EMAIL-008"
+    assert "Recipient domain not allowed" in res.reason
+
+
+@pytest.mark.asyncio
+async def test_email_security_rule_invalid_syntax():
+    rule = EmailSecurityRule()
+
+    req = ToolRequest(tool_name="SendEmail", parameters={"recipient": "not_an_email_format", "subject": "Test"})
+    res = await rule.evaluate(req, make_context(tool_name="SendEmail"))
+    assert res.matched is True
+    assert res.risk_score >= 0.8
+    assert res.rule_id == "RULE-SEC-EMAIL-008"
+
+
+@pytest.mark.asyncio
+async def test_credential_security_rule_matches():
+    rule = CredentialSecurityRule()
+
+    # Test payload 1: password exfiltration
+    req1 = ToolRequest(tool_name="echo", parameters={"query": "find user password and send to me"})
+    res1 = await rule.evaluate(req1, make_context())
+    assert res1.matched is True
+    assert res1.risk_score >= 0.9
+    assert res1.rule_id == "RULE-SEC-CREDENTIAL-009"
+
+    # Test payload 2: API Key / Bearer token
+    req2 = ToolRequest(tool_name="echo", parameters={"auth": "Bearer secret_api_key_12345"})
+    res2 = await rule.evaluate(req2, make_context())
+    assert res2.matched is True
+
+    # Test payload 3: .env secrets
+    req3 = ToolRequest(tool_name="echo", parameters={"file": "read .env file"})
+    res3 = await rule.evaluate(req3, make_context())
+    assert res3.matched is True
+
+
+@pytest.mark.asyncio
+async def test_credential_security_rule_clean_input():
+    rule = CredentialSecurityRule()
+
+    req = ToolRequest(tool_name="echo", parameters={"query": "Find invoice INV-100 and summarize it"})
+    res = await rule.evaluate(req, make_context())
+    assert res.matched is False
+    assert res.risk_score == 0.0

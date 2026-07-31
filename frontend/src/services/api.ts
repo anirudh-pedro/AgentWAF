@@ -8,6 +8,7 @@ import type {
   ToolStatistics,
   UserQueryRequest,
   UserQueryResponse,
+  AgentRunResponse,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined 
@@ -16,7 +17,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -60,6 +61,14 @@ export const api = {
 
   executeAgentQuery: async (payload: UserQueryRequest): Promise<UserQueryResponse> => {
     const response = await apiClient.post<UserQueryResponse>('/agent/execute', payload);
+    return response.data;
+  },
+
+  executeAgentWorkflow: async (goal: string, sessionId?: string): Promise<AgentRunResponse> => {
+    const response = await apiClient.post<AgentRunResponse>('/agent/run', {
+      goal,
+      session_id: sessionId,
+    });
     return response.data;
   },
 };

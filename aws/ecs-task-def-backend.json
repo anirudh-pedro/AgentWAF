@@ -1,0 +1,63 @@
+{
+  "family": "agent-waf-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::515504446185:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::515504446185:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "515504446185.dkr.ecr.us-east-1.amazonaws.com/agent-waf-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "APP_NAME", "value": "Agent WAF" },
+        { "name": "APP_DESCRIPTION", "value": "Enterprise-grade Agent Web Application Firewall" },
+        { "name": "APP_VERSION", "value": "1.0.0" },
+        { "name": "ENVIRONMENT", "value": "production" },
+        { "name": "DEBUG", "value": "false" },
+        { "name": "HOST", "value": "0.0.0.0" },
+        { "name": "PORT", "value": "8000" },
+        { "name": "API_V1_PREFIX", "value": "/api/v1" },
+        { "name": "WAF_MODE", "value": "ENFORCE" },
+        { "name": "LOG_LEVEL", "value": "INFO" },
+        { "name": "LOG_FORMAT", "value": "json" },
+        { "name": "REQUEST_TIMEOUT", "value": "30" },
+        { "name": "SHADOW_MODE", "value": "false" },
+        { "name": "DB_POOL_SIZE", "value": "5" },
+        { "name": "DB_MAX_OVERFLOW", "value": "10" },
+        { "name": "DB_POOL_TIMEOUT", "value": "30" },
+        { "name": "REQUEST_ID_HEADER", "value": "X-Request-ID" },
+        { "name": "ALLOWED_EMAIL_DOMAINS", "value": "gmail.com,company.com,enterprise.internal,example.com" }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/health || exit 1"
+        ],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/agent-waf-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

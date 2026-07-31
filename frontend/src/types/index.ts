@@ -1,11 +1,23 @@
 export interface AuditEvent {
+  event_id?: string;
   request_id: string;
   timestamp: string;
   tool_name: string;
-  policy_result: 'ALLOW' | 'BLOCK';
+  action?: string;
+  policy_result: 'ALLOW' | 'BLOCK' | 'SHADOW_BLOCK';
   risk_score: number;
   matched_rules: string[];
   violations: string[];
+  parameters?: Record<string, any>;
+  
+  // Extended Audit Telemetry Fields
+  agent_scope?: string;
+  requested_resource?: string;
+  previous_tool?: string;
+  current_tool?: string;
+  sequence_status?: 'VALID' | 'VIOLATION' | string;
+  waf_mode?: 'ENFORCE' | 'SHADOW' | string;
+
   trace_id?: string;
   graph_run_id?: string;
   execution_time_ms: number;
@@ -82,11 +94,37 @@ export interface UserQueryRequest {
 export interface UserQueryResponse {
   request_id: string;
   tool_name: string;
-  policy_result: 'ALLOW' | 'BLOCK';
+  policy_result: 'ALLOW' | 'BLOCK' | 'SHADOW_BLOCK';
   risk_score: number;
   matched_rules: string[];
   violations: string[];
   reason?: string;
   output?: any;
   execution_time_ms: number;
+}
+
+export interface AgentRunStep {
+  step_index: number;
+  tool: string;
+  parameters: Record<string, any>;
+  status: 'ALLOW' | 'BLOCK' | 'SHADOW_BLOCK';
+  risk: number;
+  matched_rules: string[];
+  violations: string[];
+  reason?: string;
+  thought?: string;
+  output?: any;
+  execution_time_ms: number;
+}
+
+export interface AgentRunResponse {
+  workflow: string;
+  goal: string;
+  status: 'completed' | 'blocked';
+  session_id: string;
+  total_steps: number;
+  steps: AgentRunStep[];
+  blocked_info?: AgentRunStep;
+  final_response: string;
+  total_execution_time_ms: number;
 }

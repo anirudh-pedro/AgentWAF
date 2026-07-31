@@ -1,132 +1,134 @@
-from abc import ABC, abstractmethod
+import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Any
 
 from config import get_settings
-from dashboard.models import AuditEvent
-from dashboard.publisher import AuditEventPublisher
 from logger import get_logger
+from tools.base import BaseTool
 from tools.schemas import ToolRequest, ToolResponse
-from .models import InspectionContext, PolicyDecision, PolicyEvaluationResult
+from .models import BasePolicyEvaluator, InspectionContext, PolicyDecision, PolicyEvaluationResult
+from .output_guard import ToolOutputGuard
+from .sanitizer import redact_secrets
 
 logger = get_logger(__name__)
 
 
-class BasePolicyEvaluator(ABC):
-    """Abstract base class for security policy evaluators."""
+class AgentWAFProxy(BaseTool):
+    """Transparent Policy-Enforcing Proxy wrapping inner AgentToolExecutor.
 
-    @abstractmethod
-    async def evaluate(
-        self, request: ToolRequest, context: InspectionContext
-    ) -> PolicyEvaluationResult:
-        """Evaluate a tool request against security policies and return a PolicyEvaluationResult."""
-        pass
-
-
-class DefaultPolicyEvaluator(BasePolicyEvaluator):
-    """Default pass-through policy evaluator returning ALLOW for all requests."""
-
-    async def evaluate(
-        self, request: ToolRequest, context: InspectionContext
-    ) -> PolicyEvaluationResult:
-        start_time = time.perf_counter()
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        return PolicyEvaluationResult(
-            decision=PolicyDecision.ALLOW,
-            reason="Default pass-through policy allowed request execution",
-            risk_score=0.0,
-            rule_id=None,
-            matched_rules=[],
-            violations=[],
-            recommendations=[],
-            evaluation_time_ms=duration_ms,
-        )
-
-
-class AgentWAFProxy:
-    """Policy-enforcing security proxy wrapping tool execution.
-    
-    Exposes the exact same interface signature (execute_tool) as AgentToolExecutor,
-    enabling transparent dependency injection into LangGraph Agent runtime.
+    Intercepts all tool execution calls, evaluates security rules, records audit logs,
+    and supports both Fail-Closed protection and Shadow Mode rule calibration.
     """
 
     def __init__(
         self,
         inner_executor: Any,
-        evaluator: BasePolicyEvaluator | None = None,
+        evaluator: BasePolicyEvaluator,
+        proxy_version: str = "1.0.0",
+        output_guard: ToolOutputGuard | None = None,
     ) -> None:
-        if inner_executor is None:
-            raise ValueError("inner_executor cannot be None")
-        self.settings = get_settings()
         self.inner_executor = inner_executor
-        self.evaluator = evaluator or DefaultPolicyEvaluator()
+        self.evaluator = evaluator
+        self.proxy_version = proxy_version
+        self.output_guard = output_guard or ToolOutputGuard()
 
     @property
-    def proxy_version(self) -> str:
-        """Sourced directly from application version settings to avoid duplicated version strings."""
-        return self.settings.APP_VERSION
+    def name(self) -> str:
+        return "agent_waf_proxy"
 
-    def discover_tools(self) -> list[dict[str, Any]]:
-        """Delegate tool discovery to inner executor."""
-        return self.inner_executor.discover_tools()
+    @property
+    def description(self) -> str:
+        return "Policy-enforcing transparent security proxy for AI Agent tool calls."
+
+    @property
+    def version(self) -> str:
+        return self.proxy_version
+
+    @property
+    def category(self) -> str:
+        return "security"
 
     def _publish_audit_event(
         self,
         request: ToolRequest,
-        decision: str,
+        policy_result: str,
         risk_score: float,
         matched_rules: list[str],
         violations: list[str],
         execution_time_ms: float,
-        timestamp: str,
+        dt_str: str,
+        eval_result: PolicyEvaluationResult | None = None,
     ) -> None:
-        """Publish audit event via AuditEventPublisher for subscriber ingestion."""
-        try:
-            event = AuditEvent(
-                request_id=request.request_id,
-                timestamp=timestamp,
-                tool_name=request.tool_name,
-                policy_result=decision,
-                risk_score=risk_score,
-                matched_rules=matched_rules,
-                violations=violations,
-                trace_id=request.metadata.get("trace_id", request.request_id),
-                graph_run_id=request.metadata.get("graph_run_id"),
-                execution_time_ms=execution_time_ms,
-            )
-            AuditEventPublisher.get_instance().publish(event)
-        except Exception as exc:
-            logger.warning("Failed to publish audit event via AuditEventPublisher", extra={"error": str(exc)})
+        """Helper to fire-and-forget extended audit log events to PostgreSQL (Neon)."""
+        from dashboard.models import AuditEvent
+        from dashboard.publisher import AuditEventPublisher
+
+        settings = get_settings()
+
+        # Extract sequence and scope metadata
+        seq_metadata = (eval_result.metadata if eval_result and eval_result.metadata else {})
+        previous_tool = seq_metadata.get("previous_tool")
+        sequence_status = seq_metadata.get("sequence_status", "VALID" if policy_result == "ALLOW" else "VIOLATION" if "RULE-SEC-SEQUENCE-006" in matched_rules else None)
+        requested_resource = seq_metadata.get("requested_resource") or request.parameters.get("customer_id") or request.parameters.get("resource_id") or request.parameters.get("file")
+        agent_scope = request.metadata.get("agent_scope") or "default-scope"
+
+        # Redact any secret credentials in parameters before audit log publishing
+        sanitized_parameters = redact_secrets(request.parameters)
+
+        event = AuditEvent(
+            event_id=f"evt-{request.request_id}",
+            request_id=request.request_id,
+            timestamp=dt_str,
+            tool_name=request.tool_name,
+            action="EXECUTE",
+            policy_result=policy_result,
+            risk_score=risk_score,
+            matched_rules=matched_rules,
+            violations=violations,
+            parameters=sanitized_parameters,
+            agent_scope=str(agent_scope) if agent_scope else None,
+            requested_resource=str(requested_resource) if requested_resource else None,
+            previous_tool=str(previous_tool) if previous_tool else None,
+            current_tool=request.tool_name,
+            sequence_status=sequence_status,
+            waf_mode=settings.WAF_MODE,
+            execution_time_ms=execution_time_ms,
+        )
+        AuditEventPublisher.get_instance().publish(event)
+
+    async def execute(self, request: ToolRequest) -> ToolResponse:
+        """Delegate to execute_tool for BaseTool protocol compatibility."""
+        return await self.execute_tool(request)
 
     async def execute_tool(self, request: ToolRequest) -> ToolResponse:
-        """Inspect ToolRequest, evaluate policy, and conditionally forward or block execution."""
+        """Main security inspection flow for intercepting agent tool requests."""
+        settings = get_settings()
         inspection_start = time.perf_counter()
-        dt_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_dt = datetime.now(timezone.utc)
+        dt_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         logger.info(
             "Agent WAF Proxy inspection started",
             extra={
-                "tool_name": request.tool_name,
                 "request_id": request.request_id,
+                "tool_name": request.tool_name,
                 "agent_id": request.agent_id,
+                "waf_mode": settings.WAF_MODE,
             },
         )
 
-        # 1. Build Inspection Context
         context = InspectionContext(
-            tool_name=request.tool_name,
-            parameters=request.parameters,
-            agent_id=request.agent_id,
+            agent_id=request.agent_id or "default-agent",
+            session_id=request.session_id or "default-session",
+            timestamp=now_dt,
             request_id=request.request_id,
-            session_id=request.session_id,
             metadata=request.metadata,
-            timestamp=dt_str,
         )
 
-        # 2. Evaluate Policy (Fail Closed Safety)
+        # 1. Evaluate Security Policy Rules
         try:
-            eval_result = await self.evaluator.evaluate(request, context)
+            eval_result: PolicyEvaluationResult = await self.evaluator.evaluate(request, context)
         except Exception as exc:
             inspection_duration = (time.perf_counter() - inspection_start) * 1000
             logger.exception(
@@ -161,8 +163,48 @@ class AgentWAFProxy:
         trace_id = request.metadata.get("trace_id") or request.request_id
         graph_run_id = request.metadata.get("graph_run_id")
 
-        # 3. Handle BLOCK Decision
+        # 2. Handle BLOCK Decision (with WAF_MODE=SHADOW support)
         if eval_result.decision == PolicyDecision.BLOCK:
+            if settings.is_shadow_mode:
+                logger.warning(
+                    "Agent WAF Proxy SHADOW MODE: would have BLOCKED tool execution",
+                    extra={
+                        "tool_name": request.tool_name,
+                        "request_id": request.request_id,
+                        "reason": eval_result.reason,
+                        "risk_score": eval_result.risk_score,
+                        "rule_id": eval_result.rule_id,
+                        "violations": eval_result.violations,
+                        "waf_mode": "SHADOW",
+                    },
+                )
+                self._publish_audit_event(
+                    request,
+                    "SHADOW_BLOCK",
+                    eval_result.risk_score,
+                    eval_result.matched_rules,
+                    eval_result.violations,
+                    inspection_duration,
+                    dt_str,
+                    eval_result,
+                )
+                # In shadow mode, log violation as SHADOW_BLOCK but execute tool safely
+                raw_response = await self.inner_executor.execute_tool(request)
+                response = self.output_guard.inspect_and_sanitize_response(raw_response)
+                response.metadata.update(
+                    {
+                        "shadow_mode": True,
+                        "would_have_blocked": True,
+                        "policy_result": "SHADOW_BLOCK",
+                        "risk_score": eval_result.risk_score,
+                        "matched_rules": eval_result.matched_rules,
+                        "violations": eval_result.violations,
+                        "waf_mode": "SHADOW",
+                    }
+                )
+                return response
+
+            # Active Enforcement Mode: Block tool call
             logger.warning(
                 "Agent WAF Proxy BLOCKED tool execution",
                 extra={
@@ -172,6 +214,7 @@ class AgentWAFProxy:
                     "risk_score": eval_result.risk_score,
                     "rule_id": eval_result.rule_id,
                     "violations": eval_result.violations,
+                    "waf_mode": "ENFORCE",
                 },
             )
             self._publish_audit_event(
@@ -182,6 +225,7 @@ class AgentWAFProxy:
                 eval_result.violations,
                 inspection_duration,
                 dt_str,
+                eval_result,
             )
             return ToolResponse(
                 success=False,
@@ -199,22 +243,25 @@ class AgentWAFProxy:
                     "recommendations": eval_result.recommendations,
                     "inspection_duration_ms": inspection_duration,
                     "proxy_version": self.proxy_version,
+                    "waf_mode": "ENFORCE",
                     "trace_id": trace_id,
                     "graph_run_id": graph_run_id,
                 },
             )
 
-        # 4. Handle ALLOW Decision -> Forward to inner executor
+        # 3. Handle ALLOW Decision -> Forward to inner executor & apply ToolOutputGuard
         logger.info(
             "Agent WAF Proxy ALLOWED request - forwarding to inner executor",
             extra={
                 "tool_name": request.tool_name,
                 "request_id": request.request_id,
                 "risk_score": eval_result.risk_score,
+                "waf_mode": settings.WAF_MODE,
             },
         )
 
-        response = await self.inner_executor.execute_tool(request)
+        raw_response = await self.inner_executor.execute_tool(request)
+        response = self.output_guard.inspect_and_sanitize_response(raw_response)
         total_duration = inspection_duration + response.execution_time_ms
 
         self._publish_audit_event(
@@ -225,30 +272,22 @@ class AgentWAFProxy:
             [],
             total_duration,
             dt_str,
+            eval_result,
         )
 
-        # 5. Non-Destructive Metadata Merge: preserve tool metadata for existing keys
-        audit_metadata: dict[str, Any] = {
-            "policy_result": "ALLOW",
-            "blocked": False,
-            "reason": eval_result.reason,
-            "risk_score": eval_result.risk_score,
-            "matched_rules": eval_result.matched_rules,
-            "inspection_duration_ms": inspection_duration,
-            "proxy_version": self.proxy_version,
-            "trace_id": trace_id,
-            "graph_run_id": graph_run_id,
-        }
-
-        merged_metadata = dict(response.metadata)
-        for k, v in audit_metadata.items():
-            if k not in merged_metadata or merged_metadata[k] is None:
-                merged_metadata[k] = v
-
-        return ToolResponse(
-            success=response.success,
-            result=response.result,
-            error=response.error,
-            execution_time_ms=response.execution_time_ms,
-            metadata=merged_metadata,
+        # Merge metadata
+        response.metadata.update(
+            {
+                "policy_result": "ALLOW",
+                "blocked": False,
+                "risk_score": eval_result.risk_score,
+                "matched_rules": eval_result.matched_rules,
+                "inspection_duration_ms": inspection_duration,
+                "proxy_version": self.proxy_version,
+                "waf_mode": settings.WAF_MODE,
+                "trace_id": trace_id,
+                "graph_run_id": graph_run_id,
+            }
         )
+
+        return response

@@ -1,5 +1,79 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
+
+export const useWebSocket = () => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let isUnmounted = false;
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+
+    const getWsUrl = () => {
+      const apiBase = import.meta.env.VITE_API_BASE_URL;
+      if (apiBase) {
+        const proto = apiBase.startsWith('https') ? 'wss:' : 'ws:';
+        const host = apiBase.replace(/^https?:\/\//, '');
+        return `${proto}//${host}/ws/dashboard`;
+      }
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${window.location.host}/ws/dashboard`;
+    };
+
+    const connect = () => {
+      if (isUnmounted) return;
+
+      try {
+        ws = new WebSocket(getWsUrl());
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'AUDIT_EVENT') {
+              // Invalidate React Query cache for real-time instant UI update
+              queryClient.invalidateQueries({ queryKey: ['auditEvents'] });
+              queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+              queryClient.invalidateQueries({ queryKey: ['ruleStats'] });
+              queryClient.invalidateQueries({ queryKey: ['toolStats'] });
+              queryClient.invalidateQueries({ queryKey: ['riskStats'] });
+            }
+          } catch {
+            // Fallback parsing
+          }
+        };
+
+        ws.onclose = () => {
+          if (!isUnmounted) {
+            reconnectTimeout = setTimeout(connect, 3000);
+          }
+        };
+
+        ws.onerror = () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
+        };
+      } catch {
+        if (!isUnmounted) {
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      isUnmounted = true;
+      clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+    };
+  }, [queryClient]);
+};
 
 export const useDashboardSummary = () => {
   return useQuery({

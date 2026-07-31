@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 
 from logger import get_logger
 from .models import (
@@ -12,10 +12,22 @@ from .models import (
     ToolStatistics,
 )
 from .service import DashboardService
+from .websocket import ws_manager
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard & Audit Analytics"])
+
+
+@router.websocket("/ws")
+async def websocket_dashboard_endpoint_alt(websocket: WebSocket) -> None:
+    """Alternative WebSocket endpoint /dashboard/ws."""
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
 
 
 @router.get(
@@ -56,11 +68,11 @@ async def get_audit_timeline(
         extra={"filter_tool": tool, "filter_decision": decision, "filter_rule": rule, "limit": limit},
     )
 
-    if decision and decision.upper() not in ("ALLOW", "BLOCK"):
+    if decision and decision.upper() not in ("ALLOW", "BLOCK", "SHADOW_BLOCK"):
         logger.warning("Invalid decision filter passed to audit API", extra={"decision": decision})
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Filter 'decision' must be either 'ALLOW' or 'BLOCK'",
+            detail="Filter 'decision' must be either 'ALLOW', 'BLOCK', or 'SHADOW_BLOCK'",
         )
 
     try:

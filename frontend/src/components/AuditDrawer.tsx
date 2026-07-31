@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ShieldAlert, ShieldCheck, FileText } from 'lucide-react';
+import { X, ShieldAlert, ShieldCheck, FileText, EyeOff } from 'lucide-react';
 import type { AuditEvent } from '../types';
 
 interface AuditDrawerProps {
@@ -10,7 +10,9 @@ interface AuditDrawerProps {
 export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
   if (!event) return null;
 
-  const isBlocked = event.policy_result === 'BLOCK';
+  const res = event.policy_result.toUpperCase();
+  const isBlocked = res === 'BLOCK';
+  const isShadow = res.includes('SHADOW');
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end transition-opacity">
@@ -20,10 +22,20 @@ export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
           <div className="flex items-center space-x-3">
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                isBlocked ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+                isShadow
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : isBlocked
+                  ? 'bg-rose-500/20 text-rose-400'
+                  : 'bg-emerald-500/20 text-emerald-400'
               }`}
             >
-              {isBlocked ? <ShieldAlert className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+              {isShadow ? (
+                <EyeOff className="w-5 h-5 text-purple-400" />
+              ) : isBlocked ? (
+                <ShieldAlert className="w-5 h-5" />
+              ) : (
+                <ShieldCheck className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h3 className="text-sm font-bold text-[#F8FAFC]">Security Inspection Details</h3>
@@ -43,7 +55,9 @@ export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
           {/* Status Banner */}
           <div
             className={`p-3.5 rounded-xl border flex items-center justify-between ${
-              isBlocked
+              isShadow
+                ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
+                : isBlocked
                 ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
                 : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
             }`}
@@ -57,26 +71,40 @@ export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
           </div>
 
           {/* Key Value Metadata */}
-          <div className="space-y-3 bg-[#0F172A] p-4 rounded-xl border border-[#334155]">
+          <div className="space-y-2.5 bg-[#0F172A] p-4 rounded-xl border border-[#334155]">
             <div className="flex justify-between items-center py-1 border-b border-[#334155]">
               <span className="text-[#94A3B8]">Timestamp</span>
               <span className="font-mono font-medium text-[#F8FAFC]">{event.timestamp}</span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-[#334155]">
-              <span className="text-[#94A3B8]">Target Tool</span>
-              <span className="font-mono font-bold text-[#F8FAFC] capitalize">{event.tool_name}</span>
+              <span className="text-[#94A3B8]">WAF Mode</span>
+              <span className="font-mono font-bold text-[#F8FAFC]">{event.waf_mode || 'ENFORCE'}</span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-[#334155]">
-              <span className="text-[#94A3B8]">Execution Latency</span>
-              <span className="font-mono font-bold text-[#F8FAFC]">{event.execution_time_ms.toFixed(2)} ms</span>
+              <span className="text-[#94A3B8]">Agent Scope</span>
+              <span className="font-mono font-bold text-purple-400">{event.agent_scope || 'default-scope'}</span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-[#334155]">
-              <span className="text-[#94A3B8]">Trace ID</span>
-              <span className="font-mono text-[#94A3B8]">{event.trace_id || 'N/A'}</span>
+              <span className="text-[#94A3B8]">Requested Resource</span>
+              <span className="font-mono font-bold text-amber-400">{event.requested_resource || 'None'}</span>
+            </div>
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Previous Tool</span>
+              <span className="font-mono text-[#94A3B8]">{event.previous_tool || 'None'}</span>
+            </div>
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Current Tool</span>
+              <span className="font-mono font-bold text-emerald-400 capitalize">{event.tool_name}</span>
+            </div>
+            <div className="flex justify-between items-center py-1 border-b border-[#334155]">
+              <span className="text-[#94A3B8]">Sequence Status</span>
+              <span className={`font-mono font-bold ${event.sequence_status === 'VIOLATION' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {event.sequence_status || 'VALID'}
+              </span>
             </div>
             <div className="flex justify-between items-center py-1">
-              <span className="text-[#94A3B8]">Graph Run ID</span>
-              <span className="font-mono text-[#94A3B8]">{event.graph_run_id || 'N/A'}</span>
+              <span className="text-[#94A3B8]">Execution Latency</span>
+              <span className="font-mono font-bold text-[#F8FAFC]">{event.execution_time_ms.toFixed(2)} ms</span>
             </div>
           </div>
 
@@ -85,7 +113,7 @@ export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
             <h4 className="font-bold text-[#F8FAFC] mb-2 flex items-center gap-2">
               <FileText className="w-4 h-4 text-blue-400" /> Matched Security Rules
             </h4>
-            {event.matched_rules.length > 0 ? (
+            {event.matched_rules && event.matched_rules.length > 0 ? (
               <div className="space-y-1.5">
                 {event.matched_rules.map((rule, i) => (
                   <div
@@ -104,7 +132,7 @@ export const AuditDrawer: React.FC<AuditDrawerProps> = ({ event, onClose }) => {
           </div>
 
           {/* Violations Detail */}
-          {event.violations.length > 0 && (
+          {event.violations && event.violations.length > 0 && (
             <div>
               <h4 className="font-bold text-[#F8FAFC] mb-2 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-rose-400" /> Policy Violation Findings
