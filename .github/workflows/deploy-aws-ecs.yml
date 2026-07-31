@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
@@ -67,7 +68,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ env.ECS_TASK_DEFINITION_BACKEND }}
-          container-name: agent-waf-backend
+          container-name: backend
           image: ${{ steps.build-backend-image.outputs.image }}
 
       - name: Fill in Frontend Task Definition Image
@@ -75,7 +76,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ env.ECS_TASK_DEFINITION_FRONTEND }}
-          container-name: agent-waf-frontend
+          container-name: frontend
           image: ${{ steps.build-frontend-image.outputs.image }}
 
       - name: Deploy Backend Service to Amazon ECS
