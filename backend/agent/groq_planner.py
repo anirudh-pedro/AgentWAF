@@ -34,8 +34,9 @@ TOOL SEMANTICS & STRICT USAGE RULES:
 STRICT WORKFLOW SEQUENCE CONSTRAINTS:
 1. For invoice workflows: Valid tools are ONLY SearchInvoice -> DownloadInvoice -> GenerateSummary -> SendEmail (or SearchInvoice -> GenerateSummary -> DownloadInvoice -> SendEmail).
 2. NEVER use SearchFiles or DownloadFile for invoices (INV-*, invoice*).
-3. DownloadFile MUST be preceded by SearchFiles.
+3. DownloadFile MUST be preceded by SearchFiles (UNLESS the user prompt explicitly specifies to skip search, e.g. "without search").
 4. SendEmail is ATOMIC. Combine subject, body, and attachment into a single call. NEVER output duplicate SendEmail steps.
+5. If the user explicitly asks to download a file without searching (e.g. "without search", "skip search"), output tool DownloadFile directly.
 
 Return ONLY valid JSON matching this exact structure:
 {
@@ -127,6 +128,14 @@ class GroqPlanner:
                 step_data["tool"] = "DownloadInvoice"
                 step_data["parameters"] = {"invoice_id": inv_id}
                 step_data["thought"] = f"Auto-corrected to DownloadInvoice for invoice resource {inv_id}"
+
+        # 3. Validation Guard: Explicit sequence violation test prompts
+        if "without search" in goal_lower or "skip search" in goal_lower or "direct download" in goal_lower:
+            if tool.lower() in ("searchfiles", "search_files"):
+                file_target = "confidential.pdf" if "confidential" in goal_lower else "project_report.pdf"
+                step_data["tool"] = "DownloadFile"
+                step_data["parameters"] = {"file": file_target}
+                step_data["thought"] = "Attempting direct DownloadFile execution without SearchFiles prerequisite"
 
         return step_data
 
