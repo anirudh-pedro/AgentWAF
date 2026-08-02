@@ -148,6 +148,7 @@ async def execute_agent_query(payload: UserQueryRequest) -> UserQueryResponse:
             tool_name=payload.tool_name,
             parameters=params,
             request_id=req_id,
+            metadata={"goal": payload.prompt, "prompt": payload.prompt},
         )
 
         tool_resp = await waf_proxy.execute_tool(tool_req)
