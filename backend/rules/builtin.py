@@ -115,6 +115,10 @@ class PromptInjectionRule(BaseRule):
 
     async def evaluate(self, request: ToolRequest, context: InspectionContext) -> RuleResult:
         all_strings = _extract_all_strings(request.parameters)
+        if request.metadata:
+            all_strings.extend(_extract_all_strings(request.metadata))
+        if context.metadata:
+            all_strings.extend(_extract_all_strings(context.metadata))
 
         for text in all_strings:
             for pattern in self._PATTERNS:
@@ -127,7 +131,7 @@ class PromptInjectionRule(BaseRule):
                         risk_score=0.9,
                         violation=f"Potential prompt injection pattern matched: '{pattern.pattern}'",
                         recommendation="Block execution and log security event for prompt analysis",
-                        reason="Input parameter contains instructions attempting to override system prompts",
+                        reason="Input prompt or parameter contains instructions attempting to override system prompts",
                         metadata={"matched_pattern": pattern.pattern},
                     )
 

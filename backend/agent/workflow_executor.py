@@ -114,6 +114,7 @@ class WorkflowExecutor:
                 parameters=parameters,
                 request_id=req_id,
                 session_id=session_id,
+                metadata={"goal": goal},
             )
 
             # 3. EVERY single tool call MUST pass through Agent WAF Proxy
