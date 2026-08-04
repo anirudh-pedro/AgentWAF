@@ -49,7 +49,7 @@ class AgentWAFProxy(BaseTool):
     def category(self) -> str:
         return "security"
 
-    def _publish_audit_event(
+    async def _publish_audit_event(
         self,
         request: ToolRequest,
         policy_result: str,
@@ -60,9 +60,10 @@ class AgentWAFProxy(BaseTool):
         dt_str: str,
         eval_result: PolicyEvaluationResult | None = None,
     ) -> None:
-        """Helper to fire-and-forget extended audit log events to PostgreSQL (Neon)."""
+        """Helper to record audit log events into PostgreSQL (Neon)."""
         from dashboard.models import AuditEvent
         from dashboard.publisher import AuditEventPublisher
+        from dashboard.service import DashboardService
 
         settings = get_settings()
 
@@ -95,8 +96,11 @@ class AgentWAFProxy(BaseTool):
             waf_mode=settings.WAF_MODE,
             execution_time_ms=execution_time_ms,
         )
-        from dashboard.service import DashboardService
-        DashboardService.get_instance().record_event(event)
+        try:
+            await DashboardService.get_instance().repository.record_event(event)
+        except Exception as exc:
+            logger.warning(f"Failed to record audit event: {exc}")
+
         AuditEventPublisher.get_instance().publish(event)
 
     async def execute(self, request: ToolRequest) -> ToolResponse:
@@ -141,7 +145,7 @@ class AgentWAFProxy(BaseTool):
                     "error": str(exc),
                 },
             )
-            self._publish_audit_event(
+            await self._publish_audit_event(
                 request, "BLOCK", 1.0, ["FAIL_CLOSED_EXCEPTION"], [str(exc)], inspection_duration, dt_str
             )
             return ToolResponse(
@@ -152,10 +156,7 @@ class AgentWAFProxy(BaseTool):
                 metadata={
                     "policy_result": "BLOCK",
                     "blocked": True,
-                    "proxy_version": self.proxy_version,
-                    "reason": "Policy evaluator exception (Fail Closed)",
-                    "trace_id": request.metadata.get("trace_id", request.request_id),
-                    "graph_run_id": request.metadata.get("graph_run_id"),
+                    "reason": "Agent WAF policy evaluation failed",
                 },
             )
 
@@ -180,7 +181,7 @@ class AgentWAFProxy(BaseTool):
                         "waf_mode": "SHADOW",
                     },
                 )
-                self._publish_audit_event(
+                await self._publish_audit_event(
                     request,
                     "SHADOW_BLOCK",
                     eval_result.risk_score,
@@ -219,7 +220,7 @@ class AgentWAFProxy(BaseTool):
                     "waf_mode": "ENFORCE",
                 },
             )
-            self._publish_audit_event(
+            await self._publish_audit_event(
                 request,
                 "BLOCK",
                 eval_result.risk_score,
@@ -266,7 +267,7 @@ class AgentWAFProxy(BaseTool):
         response = self.output_guard.inspect_and_sanitize_response(raw_response)
         total_duration = inspection_duration + response.execution_time_ms
 
-        self._publish_audit_event(
+        await self._publish_audit_event(
             request,
             "ALLOW",
             eval_result.risk_score,

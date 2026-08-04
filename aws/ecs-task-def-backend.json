@@ -11,7 +11,7 @@
   "containerDefinitions": [
     {
       "name": "backend",
-      "image": "515504446185.dkr.ecr.us-east-1.amazonaws.com/agent-waf-backend:v1.0.7",
+      "image": "515504446185.dkr.ecr.us-east-1.amazonaws.com/agent-waf-backend:v1.0.9",
       "essential": true,
       "portMappings": [
         {
@@ -38,7 +38,13 @@
         { "name": "DB_MAX_OVERFLOW", "value": "10" },
         { "name": "DB_POOL_TIMEOUT", "value": "30" },
         { "name": "REQUEST_ID_HEADER", "value": "X-Request-ID" },
-        { "name": "ALLOWED_EMAIL_DOMAINS", "value": "gmail.com,company.com,enterprise.internal,example.com" }
+        { "name": "ALLOWED_EMAIL_DOMAINS", "value": "gmail.com,company.com,enterprise.internal,example.com" },
+        { "name": "DATABASE_URL", "value": "postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-cold-voice-auo9kmzr-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require" },
+        { "name": "GROQ_API_KEY", "value": "YOUR_GROQ_API_KEY" },
+        { "name": "GMAIL_EMAIL", "value": "anirudh200503@gmail.com" },
+        { "name": "GMAIL_APP_PASSWORD", "value": "YOUR_GMAIL_APP_PASSWORD" },
+        { "name": "CORS_ORIGINS", "value": "*" },
+        { "name": "RATE_LIMIT_WINDOW", "value": "60" }
       ],
       "healthCheck": {
         "command": [
