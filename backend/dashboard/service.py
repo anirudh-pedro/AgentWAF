@@ -53,7 +53,10 @@ class DashboardService:
         """Record an audit event into PostgreSQL (Neon) database asynchronously."""
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self.repository.record_event(event))
+            task = loop.create_task(self.repository.record_event(event))
+            task.add_done_callback(
+                lambda t: logger.error(f"Audit record_event async error: {t.exception()}", extra={"error": str(t.exception())}) if not t.cancelled() and t.exception() else None
+            )
         except RuntimeError:
             asyncio.run(self.repository.record_event(event))
 

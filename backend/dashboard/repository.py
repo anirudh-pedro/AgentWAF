@@ -47,7 +47,7 @@ class DashboardRepository:
                 )
                 session.add(log_entry)
                 await session.commit()
-                logger.debug("Persisted audit log event into PostgreSQL", extra={"request_id": event.request_id})
+                logger.info("Persisted audit log event into database", extra={"request_id": event.request_id})
         except Exception as exc:
             logger.exception("Failed to persist audit event into PostgreSQL database", extra={"error": str(exc)})
 
