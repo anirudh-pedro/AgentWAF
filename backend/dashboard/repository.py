@@ -29,10 +29,18 @@ class DashboardRepository:
         return cls._instance
 
     async def record_event(self, event: AuditEvent) -> None:
-        """Persist an audit event into PostgreSQL (Neon) audit_logs table."""
+        """Persist an audit event into PostgreSQL (Neon) audit_logs table cleanly (Idempotent)."""
         try:
             db_mgr = DatabaseManager.get_instance()
             async with db_mgr.session_factory() as session:
+                # Idempotency check: prevent duplicate insertion of the same request_id
+                existing = await session.scalar(
+                    select(AuditLogModel).where(AuditLogModel.request_id == event.request_id)
+                )
+                if existing is not None:
+                    logger.debug("Audit log event already persisted, skipping duplicate", extra={"request_id": event.request_id})
+                    return
+
                 log_entry = AuditLogModel(
                     request_id=event.request_id,
                     timestamp=event.timestamp,

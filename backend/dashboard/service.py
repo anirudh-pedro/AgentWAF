@@ -37,8 +37,7 @@ class DashboardService:
 
     def __init__(self) -> None:
         self.repository = DashboardRepository.get_instance()
-        # Subscribe to AuditEventPublisher
-        AuditEventPublisher.get_instance().subscribe(self.record_event)
+        # Note: Audit event recording is executed directly by proxy with idempotency check
 
     @classmethod
     def get_instance(cls) -> "DashboardService":

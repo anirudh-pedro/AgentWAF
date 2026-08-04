@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     LOG_FORMAT: Literal["json", "text"] = "json"
 
     # Security Configuration
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+    CORS_ORIGINS: Any = ["http://localhost:3000", "http://localhost:8000"]
 
     # WAF Engine & Security Policy Configuration
     SHADOW_MODE: bool = False
@@ -139,17 +139,17 @@ class Settings(BaseSettings):
             v = v.strip()
             if not v:
                 return []
-            if v == "*":
+            if v == "*" or v == '"*"' or v == "'*'":
                 return ["*"]
             if v.startswith("[") and v.endswith("]"):
                 try:
                     return json.loads(v)
-                except json.JSONDecodeError:
-                    raise ValueError(f"Invalid JSON array string for CORS_ORIGINS: {v}")
+                except Exception:
+                    pass
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         elif isinstance(v, list):
             return [str(origin) for origin in v]
-        raise ValueError(f"Invalid format for CORS_ORIGINS: {v}")
+        return ["*"]
 
     @field_validator("ALLOWED_EMAIL_DOMAINS", mode="before")
     @classmethod
