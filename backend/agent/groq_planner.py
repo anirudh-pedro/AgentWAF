@@ -137,6 +137,12 @@ class GroqPlanner:
                 step_data["parameters"] = {"file": file_target}
                 step_data["thought"] = "Attempting direct DownloadFile execution without SearchFiles prerequisite"
 
+        # 4. Validation Guard: Explicit prompt injection test prompts
+        if any(kw in goal_lower for kw in ("ignore", "override", "reveal", "jailbreak", "bypass", "disregard", "system prompt")):
+            step_data["tool"] = "Echo"
+            step_data["parameters"] = {"message": goal}
+            step_data["thought"] = "Attempting prompt injection payload execution"
+
         return step_data
 
     def generate_fallback_step(self, goal: str, history: list[dict[str, Any]]) -> dict[str, Any]:
