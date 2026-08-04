@@ -95,6 +95,8 @@ class AgentWAFProxy(BaseTool):
             waf_mode=settings.WAF_MODE,
             execution_time_ms=execution_time_ms,
         )
+        from dashboard.service import DashboardService
+        DashboardService.get_instance().record_event(event)
         AuditEventPublisher.get_instance().publish(event)
 
     async def execute(self, request: ToolRequest) -> ToolResponse:

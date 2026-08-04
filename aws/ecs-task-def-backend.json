@@ -11,7 +11,7 @@
   "containerDefinitions": [
     {
       "name": "backend",
-      "image": "515504446185.dkr.ecr.us-east-1.amazonaws.com/agent-waf-backend:v1.0.5",
+      "image": "515504446185.dkr.ecr.us-east-1.amazonaws.com/agent-waf-backend:v1.0.6",
       "essential": true,
       "portMappings": [
         {
